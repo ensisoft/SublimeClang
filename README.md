@@ -47,11 +47,10 @@ There's also the following key-bindings (tweak Default.sublime-keymaps to change
       |alt+d,alt+o|Run the Clang static analyzer on the current project|
       |alt+d,alt+f|Toggle whether fast (but possibly inaccurate) completions are used or not|
 
-=== Show your support ===
 
-[[https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=UPSEP2BHMLYEW|Donate]]
 
-=== License ===
+License
+--------------------------------------
 This plugin is using the zlib license
 
 {{{
