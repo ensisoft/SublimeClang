@@ -113,17 +113,18 @@ class CacheCompletionResults(Structure):
 cachelib = get_cache_library()
 if cachelib:
     try:
-        import json
-        _getVersion = cachelib.getVersion
-        _getVersion.restype = c_char_p
-        f = open("%s/../package.json" % scriptpath)
-        data = json.load(f)
-        f.close()
-        json = data["packages"][0]["platforms"]["*"][0]["version"]
-        lib = _getVersion().decode(sys.getdefaultencoding())
-        print("Have SublimeClang package: %s" % json)
-        print("Have SublimeClang libcache: %s" % lib)
-        assert lib == json
+        pass
+        #import json
+        #_getVersion = cachelib.getVersion
+        #_getVersion.restype = c_char_p
+        #f = open("%s/../package.json" % scriptpath)
+        #data = json.load(f)
+        #f.close()
+        #json = data["packages"][0]["platforms"]["*"][0]["version"]
+        #lib = _getVersion().decode(sys.getdefaultencoding())
+        #print("Have SublimeClang package: %s" % json)
+        #print("Have SublimeClang libcache: %s" % lib)
+        #assert lib == json
     except:
         import traceback
         traceback.print_exc()

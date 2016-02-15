@@ -20,7 +20,7 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 */
-#include "clang-c/Index.h"
+#include <clang-c/Index.h>
 #include <stdio.h>
 #include <string>
 #include <string.h>
@@ -42,15 +42,6 @@ freely, subject to the following restrictions:
     #define MINGWSUPPORT __attribute__ ((callee_pop_aggregate_return(0)))
 #else
     #define MINGWSUPPORT
-#endif
-
-using namespace std;
-#ifdef SUBLIMECLANG_USE_TR1
-#include <tr1/memory>
-using namespace std::tr1;
-#elif defined(BOOST_TR1_MEMORY_INCLUDED)
-#include <boost/tr1/tr1/memory>
-using namespace boost;
 #endif
 
 static const char* getCursorKindName(CXCursorKind c)
@@ -215,7 +206,7 @@ bool operator<(const CXCursor &c1, const CXCursor &c2)
 
 class Entry;
 typedef std::vector<CXCursor>                CursorList;
-typedef std::vector<shared_ptr<Entry> > EntryList;
+typedef std::vector<std::shared_ptr<Entry> > EntryList;
 typedef std::map<CXCursor, CursorList>       CategoryContainer;
 
 
@@ -645,7 +636,7 @@ void trim(EntryList& mEntries)
 class EntryCompare
 {
 public:
-    bool operator()(const shared_ptr<Entry> a, const shared_ptr<Entry> b) const
+    bool operator()(const std::shared_ptr<Entry> a, const std::shared_ptr<Entry> b) const
     {
         if (!b)
             return false;
@@ -661,16 +652,16 @@ public:
 
     }
 
-    bool operator()(const shared_ptr<Entry> a, const char *str) const
+    bool operator()(const std::shared_ptr<Entry> a, const char *str) const
     {
         return compare(a, str) < 0;
     }
-    bool operator()(const char *str, const shared_ptr<Entry> a) const
+    bool operator()(const char *str, const std::shared_ptr<Entry> a) const
     {
         return compare(a, str) > 0;
     }
 private:
-    int compare(const shared_ptr<Entry> a, const char *str) const
+    int compare(const std::shared_ptr<Entry> a, const char *str) const
     {
         size_t length;
 
@@ -805,7 +796,7 @@ public:
                 parse_res(ins, disp, cursor);
                 if (ins.length() != 0)
                 {
-                    shared_ptr<Entry> entry(new Entry(cursor, disp, ins, access, isBaseClass));
+                    std::shared_ptr<Entry> entry(new Entry(cursor, disp, ins, access, isBaseClass));
                     entries.push_back(entry);
                 }
                 else if (ck == CXCursor_StructDecl || ck == CXCursor_UnionDecl)
@@ -861,7 +852,7 @@ public:
                 d.visit_children(cursor);
                 for (EntryList::iterator i = e.begin(); i < e.end(); i++)
                 {
-                    shared_ptr<Entry> entry = *i;
+                    std::shared_ptr<Entry> entry = *i;
                     if (clang_getCursorKind(entry->cursor) == CXCursor_Constructor && entry->access == CX_CXXPublic)
                         entries.push_back(entry);
                 }
@@ -1129,7 +1120,7 @@ CXChildVisitResult NamespaceFinder::visitor(CXCursor cursor, CXCursor parent, CX
                         EntryList &entries = d.getEntries();
                         for (EntryList::iterator i = entries.begin(); i < entries.end(); i++)
                         {
-                            shared_ptr<Entry> e = (*i);
+                            std::shared_ptr<Entry> e = (*i);
 
                             CXChildVisitResult r = NamespaceFinder::visitor(e->cursor, cursor, nvd);
                             if (r == CXChildVisit_Recurse)
@@ -1281,7 +1272,7 @@ public:
         std::sort(mEntries.begin(), mEntries.end(), EntryCompare());
         for (EntryList::iterator i = mEntries.begin(); i != mEntries.end(); ++i)
         {
-            shared_ptr<Entry> e = *i;
+            std::shared_ptr<Entry> e = *i;
             CXCursorKind ck = clang_getCursorKind(e->cursor);
             if (ck == CXCursor_Namespace || ck == CXCursor_NamespaceAlias)
             {
@@ -1336,7 +1327,7 @@ public:
             parse_res(insertion, representation, res->Results[start].CursorKind, res->Results[start].CompletionString);
             if (insertion.length() != 0)
             {
-                shared_ptr<Entry> entry(new Entry(tmp, representation, insertion));
+                std::shared_ptr<Entry> entry(new Entry(tmp, representation, insertion));
                 entries.push_back(entry);
             }
             start++;
@@ -1456,7 +1447,7 @@ void NamespaceVisitorData::execute()
             EntryList &entries = d.getEntries();
             for (EntryList::iterator i = entries.begin(); i < entries.end(); i++)
             {
-                shared_ptr<Entry> e = (*i);
+                std::shared_ptr<Entry> e = (*i);
 
                 CXChildVisitResult r = NamespaceFinder::visitor(e->cursor, cursor, this);
                 if (r == CXChildVisit_Recurse)
@@ -1529,7 +1520,7 @@ EXPORT void deleteCache(Cache *cache)
 
 EXPORT const char* getVersion()
 {
-    return SUBLIMECLANG_VERSION;
+    return "1.0";
 }
 
 }

@@ -32,6 +32,9 @@ please see http://www.github.com/quarnster/SublimeClang for more details. """)
 import os
 import sys
 
+# http://stackoverflow.com/questions/4383571/importing-files-from-different-folder-in-python
+sys.path.insert(0, '/home/enska/coding/SublimeClang')
+
 try:
     import Queue
     from internals.clang import cindex
@@ -44,15 +47,15 @@ try:
     from internals.parsehelp import parsehelp
     plugin_loaded()
 except ImportError:
-    import queue as Queue
-    from .internals.clang import cindex
-    from .errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
+    import Queue as Queue
+    from internals.clang import cindex
+    from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                              update_statusbar, erase_error_marks, clang_error_panel
-    from .internals.common import get_setting, get_settings, is_supported_language, \
+    from internals.common import get_setting, get_settings, is_supported_language, \
                                     get_language,get_cpu_count, run_in_main_thread, \
                                     status_message, sencode, are_we_there_yet, plugin_loaded
-    from .internals import translationunitcache
-    from .internals.parsehelp import parsehelp
+    from internals import translationunitcache
+    from internals.parsehelp import parsehelp
 
 import sublime_plugin
 from sublime import Region
@@ -61,6 +64,7 @@ import re
 import threading
 import time
 import traceback
+import os
 
 def warm_up_cache(view, filename=None):
     if filename == None:
@@ -81,6 +85,12 @@ def get_translation_unit(view, filename=None, blocking=False):
         elif stat == translationunitcache.TranslationUnitCache.STATUS_PARSING:
             sublime.status_message("Hold your horses, cache still warming up")
             return None
+
+    #print(filename)
+    dir = os.path.dirname(filename)
+    
+
+
     return translationunitcache.tuCache.get_translation_unit(filename, translationunitcache.tuCache.get_opts(view), translationunitcache.tuCache.get_opts_script(view))
 
 navigation_stack = []
@@ -275,8 +285,18 @@ def display_compilation_results(view):
                 if ignore_diagnostic(filename, ignoreDirs):
                     continue
 
+                severityName=""
+                if diag.severity == cindex.Diagnostic.Note:
+                    severityName="note"
+                elif diag.severity == cindex.Diagnostic.Warning:
+                    severityName="warning"
+                elif diag.severity == cindex.Diagnostic.Error:
+                    severityName="error"
+                elif diag.severity == cindex.Diagnostic.Fatal:
+                    severityName="fatal"
+
                 err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column,
-                                              diag.severityName,
+                                              severityName,
                                               diag.spelling)
 
                 if ignore_regex and ignore_regex.search(err):
@@ -304,7 +324,7 @@ def display_compilation_results(view):
                     errString = "%s%s\n" % (errString, fix)
                 """
                 add_error_mark(
-                    diag.severityName, filename, f.line - 1, diag.spelling)
+                    severityName, filename, f.line - 1, diag.spelling)
             show = errString and get_setting("show_output_panel", True, view)
     finally:
         tu.unlock()

@@ -1,54 +1,32 @@
-= Plugin discontinued =
+SublimeClang Plugin for SublimeText2
+====================================
 
-** I don't intend to continue development of this plugin, so I've disabled the issues page. If something is broken, submit a pull request and I'll consider merging it. The issue history is [[https://github.com/quarnster/SublimeClang/tree/master/issues|archived]] should you want to poke in it.
+Provides completions and code parsing through clang.
 
-** Eventually SublimeClang will be replaced by https://github.com/quarnster/completion, but as I don't code much in clang supported languages these days it's not a very high priority for me personally.
-If you'd like to see it move along quicker, submit a pull request in that project and/or participate in its discussions.
+Original plugin by Fredrik Ehnbom.
 
-=== Description ===
-Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++/ObjC/ObjC++. It'll also optionally parse the code as it's typed and show errors and warnings.
+Installation
+------------------------------------
 
-=== Known issues and feature requests ===
-Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direction=desc&state=open|here]] to see the currently known issues and feature request, or to file a new.
+Support for Linux only.
 
-=== Prerequisites ===
-  # To use the clang static analyzer you need to have clang installed and in your path. The other functionality should work without having the clang binaries installed.
+This requires that you've installed libclang in your system.
+Currently supported version by the plugin is clang 3.7.1
 
-=== Additional Prerequisites (Linux Only)===
-  # [[http://sublimetext.userecho.com/topic/85126-ctypes-cant-be-imported-in-linux/|ctypes can't be imported]] in the Linux version of Sublime Text 2 right now. This can however be worked around easily with the help of pythonbrew:
-  ## curl -kL http://xrl.us/pythonbrewinstall | bash
-  ## source "$HOME/.pythonbrew/etc/bashrc"
-  ## pythonbrew install --configure="--enable-unicode=ucs4" 2.6
-  ## ln -s $HOME/.pythonbrew/pythons/Python-2.6/lib/python2.6/ <your Sublime Text 2 folder>/lib/python2.6
-  # If you install SublimeClang via Package Control, it seems [[http://github.com/quarnster/SublimeClang/issues/97|libcache and libclang will be deleted]] when the package is updated, so it's recommended that you manually install the plugin by using the git commands listed in the Installation section.
-  # Once SublimeClang has been installed, libcache will have to be compiled:
-  ## cd src
-  ## mkdir build
-  ## cd build
-  ## cmake ..
-  ## make
-  * Note that if a usable libclang library isn't found, it will be downloaded and built as part of the build process.
+```
+$ cd .config/sublime-text-2/Plugins
+$ git clone https://github.com/ensisoft/SublimeClang
+$ cd SublimeClang
+$ make
+```
 
-If you run into any issues, please have a look at issue [[https://github.com/quarnster/SublimeClang/issues/35|#35]] for additional notes or to ask for help.
+Restart SublimeText.
 
-=== Installation ===
-    # The easiest way to install SublimeClang is via the excellent Package Control Plugin. Note that SublimeClang doesn't install correctly with version v1.6.3
-    of Package Control; either use the latest testing version or (if it exists) 
-    a newer stable version of Package Control.
-    ## See http://wbond.net/sublime_packages/package_control#Installation
-    ### Once package control has been installed, bring up the command palette (cmd+shift+P or ctrl+shift+P)
-    ### Type Install and select "Package Control: Install Package"
-    ### Select SublimeClang from the list. Package Control will keep it automatically updated for you
-    ## If you don't want to use package control, you can manually install it
-    ### Go to your packages directory and type:
-    ####        git clone --recursive https://github.com/quarnster/SublimeClang SublimeClang
-    ####        After this you'll have to Compile libcache as described in the Additional Prerequisites (Linux Only) section
-    ### To update run the following command:
-    ####        git pull && git submodule foreach --recursive git pull origin master
-    # Back in the editor, open up the command palette by pressing cmd+shift+P or ctrl+shift+P
-    # Type SublimeClang and open up the settings file you want to modify with any include directories or other options you want to provide to clang.
 
-=== Usage ===
+
+Usage
+-------------------------------------
+
 After installation, suggestions from clang should be provided when triggering the autocomplete operation in Sublime Text 2. By default it'll inhibit the Sublime Text 2 built in word completion, but the inhibition can be disabled by setting the configuration option "inhibit_sublime_completions" to false.
 
 If you modify a file that clang can compile and if there are any errors or warnings in that file, you should see the output in the output panel, as well as having the warnings and errors marked in the source file.
