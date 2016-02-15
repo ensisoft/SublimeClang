@@ -10,8 +10,25 @@ Installation
 
 Support for Linux only.
 
-This requires that you've installed libclang in your system.
+NOTE: This plugin requires ctypes Python plugin! 
+Unfortunately the python bundled with SublimeText2 does
+not come with ctypes. By far the easiest way to work around
+this is by using the python 2.6 provided by your system.
+
+Then go into your SublimeClang2 installation folder
+and make a symbolic link to your python. After this ST2
+will use the system python instead of built-in python.
+
+```
+$ cd your/sublime-text-2/lib
+$ ln -s /usr/lib/python2.6 python2.6
+```
+
+
+SublimeClang now requires that you've installed libclang in your system.
 Currently supported version by the plugin is clang 3.7.1
+
+Once you have all that crap out of the way then install the plugin by.
 
 ```
 $ cd .config/sublime-text-2/Plugins
@@ -20,7 +37,7 @@ $ cd SublimeClang
 $ make
 ```
 
-Restart SublimeText.
+Restart SublimeText. :metal:
 
 
 
