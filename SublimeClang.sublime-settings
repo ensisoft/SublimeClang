@@ -153,7 +153,13 @@
     },
 
       
-    // system wide settings for SublimeClang
+    // system wide settings for SublimeClang,
+    // very cryptic, run your clang with the following command
+    // $ clang++ -### -c hello.cpp
+    // and you should get a bunch of parameters that the clang driver
+    // feeds to the frontend (cc1)
+    // copy the ones called -internal-isystem and remove the -internal
+    // part and then put them here.
     "options":
     [
         "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0",

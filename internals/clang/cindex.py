@@ -3543,17 +3543,28 @@ class Config:
             return Config.library_file
 
         import platform
+        import os.path
         name = platform.system()
+        file = ""
 
         if name == 'Darwin':
             file = 'libclang.dylib'
         elif name == 'Windows':
             file = 'libclang.dll'
         else:
-            file = 'libclang.so'
+            if os.path.exists("/usr/lib/libclang.so"):
+                file = '/usr/lib/libclang.so'
+            elif os.path.exists("/usr/lib/llvm-3.7/lib/libclang.so"):
+                file = '/usr/lib/llvm-3.7/lib/libclang.so'
+            elif os.path.exists("/usr/lib/llvm-3.6/lib/libclang.so"):
+                file = '/usr/lib/llvm-3.6/lib/libclang.so'
 
-        if Config.library_path:
-            file = Config.library_path + '/' + file
+        # MODIFY HERE.
+        if file == "":
+            file = "~/bin/clang-3.7.1/lib/libclang.so"
+
+        # if Config.library_path:
+        #     file = Config.library_path + '/' + file
 
         return file
 

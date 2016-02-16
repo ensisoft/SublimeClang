@@ -24,12 +24,12 @@ freely, subject to the following restrictions:
 import os
 import sys
 
-from .common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
+from common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
                     get_language, LockedVariable, run_in_main_thread, error_message,\
                     display_user_selection, get_cpu_count, status_message, bencode, bdecode,\
                     sencode, sdecode, are_we_there_yet, look_for_file
-from .clang import cindex
-from .parsehelp.parsehelp import *
+from clang import cindex
+from parsehelp import *
 
 try:
     import Queue
@@ -71,12 +71,10 @@ def get_cache_library():
     except:
         import traceback
         traceback.print_exc()
-        error_message("""\
-It looks like %s couldn't be loaded. On Linux you have to \
-compile it yourself.
-
-See http://github.com/quarnster/SublimeClang for more details.
-""" % (filename))
+        error_message(
+            """It looks like %s couldn't be loaded. On Linux you have to compile it yourself.\n\n \
+            Go to into your ~/.config/sublime-text-2/Packages/SublimeClang and run make.\n\n \
+            Or visit https://github.com/ensisoft/SublimeClang for more information.""" % (filename))
 
 
 class CacheEntry(Structure):
