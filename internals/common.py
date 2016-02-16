@@ -23,14 +23,12 @@ freely, subject to the following restrictions:
 
 import threading
 import time
-try:
-    import Queue
-except:
-    import queue as Queue
+import Queue
 import os
 import re
 import sys
 import glob
+import json
 
 if sys.version[0] == '2':
     def sencode(s):
@@ -185,6 +183,47 @@ try:
             current_dir = os.path.dirname(current_dir)
         return None
 
+
+    # Find the project file for project/user specific settings.
+    # The search is performed based on the C++ source file location.
+    # and ascends from that folder towards the root.
+    # Returns filename with complete path to the file or None if not found.
+    def find_project_file(source_file):
+        p = re.compile("\\.sublime-project$")
+        dir = os.path.dirname(source_file)
+        while len(dir) != 0:
+            #print("Trying: " + dir)
+            entities = os.listdir(dir)
+            for e in entities:
+                m = p.search(e)
+                if m == None:
+                    continue
+                return os.path.normpath(dir + "/" + e)
+                if (dir == "/"):
+                    break
+            # move up one folder
+            (head, tail) = os.path.split(dir)
+            dir = head
+
+    # Read the project specific settings from the project file.
+    def read_project_settings(project_file):
+        file = open(project_file, mode="r")
+        data = json.load(file)
+        settings = data["settings"]
+        if settings != None:
+            return settings["sublimeclang_options"]
+
+        return None
+
+
+    # expand special variable such as ${home} in user settings.
+    def expand_setting_variable(input):
+        if "${home}" in input:
+            home = os.path.expanduser("~")
+            input = input.replace("${home}", home)
+
+        return input
+
 except:
     # Just used for unittesting
     def are_we_there_yet(f):
@@ -302,6 +341,18 @@ def get_path_setting(key, default=None, view=None):
     else:
         opts.append(expand_path(value, view.window()))
     return opts
+
+def get_project_settings(cpp_source_file):
+    project_settings_file = find_project_file(cpp_source_file)
+    if project_settings_file == None:
+        return None
+    project_settings = read_project_settings(project_settings_file)
+    if project_settings == None:
+        return None
+    outs = []
+    for setting in project_settings:
+        outs.append(expand_setting_variable(setting))
+    return outs
 
 
 def get_cpu_count():

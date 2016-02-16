@@ -1131,6 +1131,36 @@ TemplateArgumentKind.DECLARATION = TemplateArgumentKind(2)
 TemplateArgumentKind.NULLPTR = TemplateArgumentKind(3)
 TemplateArgumentKind.INTEGRAL = TemplateArgumentKind(4)
 
+class CXXAccessSpecifier:
+    def __init__(self, name, kind):
+        self.name = name
+        self.kind = kind
+
+    def __str__(self):
+        return self.name
+
+    def is_public(self):
+        return self.kind == 1
+
+    def is_protected(self):
+        return self.kind == 2
+
+    def is_private(self):
+        return self.kind == 3
+
+_cxx_access_specifiers = {
+       0: CXXAccessSpecifier("CX_CXXInvalidAccessSpecifier", 0),
+       1: CXXAccessSpecifier("CX_CXXPublic", 1),
+       2: CXXAccessSpecifier("CX_CXXProtected", 2),
+       3: CXXAccessSpecifier("CX_CXXPrivate", 3)
+}
+
+
+CXXAccessSpecifier.PUBLIC = 1
+CXXAccessSpecifier.PROTECTED = 2
+CXXAccessSpecifier.PRIVATE = 3
+
+
 ### Cursors ###
 
 class Cursor(Structure):
@@ -1149,7 +1179,18 @@ class Cursor(Structure):
 
         return cursor
 
+    @staticmethod
+    def get(tu, filename, row, col):
+        file = File.from_name(tu, filename)
+        if file == None:
+            return None
+        location = conf.lib.clang_getLocation(tu, file, row, col)
+        return Cursor.from_location(tu, location)
+
+
     def __eq__(self, other):
+        if other is None:
+            return conf.lib.clang_equalCursors(self, conf.lib.clang_getNullCursor())
         return conf.lib.clang_equalCursors(self, other)
 
     def __ne__(self, other):
@@ -1177,6 +1218,9 @@ class Cursor(Structure):
         # TODO: Should probably check that this is either a reference or
         # declaration prior to issuing the lookup.
         return conf.lib.clang_getCursorDefinition(self)
+
+    def get_reference(self):
+        return conf.lib.clang_getCursorReferenced(self)
 
     def get_usr(self):
         """Return the Unified Symbol Resultion (USR) for the entity referenced
@@ -1456,7 +1500,10 @@ class Cursor(Structure):
         children = []
         conf.lib.clang_visitChildren(self, callbacks['cursor_visit'](visitor),
             children)
-        return iter(children)
+
+        #return iter(children)
+        return list(iter(children))
+
 
     def walk_preorder(self):
         """Depth-first preorder walk over the cursor and its descendants.
@@ -1500,6 +1547,243 @@ class Cursor(Structure):
         """
         return conf.lib.clang_getFieldDeclBitWidth(self)
 
+    def get_returned_pointer_level(self, curr=0):
+        ret = 0
+        type = None
+
+        if not self.result_type.kind.is_invalid():
+            type = self.result_type
+        else:
+            type = self.type
+        while not type is None:
+            if type.kind == TypeKind.POINTER:
+                type = type.get_pointee()
+            elif type.kind == TypeKind.CONSTANTARRAY:
+                type = type.get_array_element_type()
+            elif type.kind == TypeKind.TYPEDEF:
+                children = self.get_children()
+                if len(children) == 1 and children[0].kind == CursorKind.TYPE_REF:
+                    ref = children[0].get_reference()
+                    if ref != self:
+                        return ret + ref.get_returned_pointer_level()
+                    return ret
+
+                if self.kind == CursorKind.TYPEDEF_DECL:
+                    for child in children:
+                        if child.kind == CursorKind.INTEGER_LITERAL:
+                            ret += 1
+                break
+            else:
+                break
+            ret += 1
+
+        return ret
+
+
+    def get_resolved_cursor(self, parent=None):
+        #print("get_type")
+        if self.kind == CursorKind.OBJC_INTERFACE_DECL:
+            return self
+        if self.kind == CursorKind.STRUCT_DECL or \
+                self.kind == CursorKind.CLASS_DECL or \
+                self.kind == CursorKind.CLASS_TEMPLATE:
+            ret = self.get_definition()
+            if ret is None:
+                ret = self
+            return ret
+        if self.kind == CursorKind.TYPEDEF_DECL:
+            children = self.get_children()
+            simple = True
+            first = 0
+            for child in children:
+                if child.kind != CursorKind.NAMESPACE_REF:
+                    break
+                first += 1
+
+            for child in children[first+1:]:
+                if child.kind != CursorKind.INTEGER_LITERAL:
+                    simple = False
+                    break
+            if simple and len(children) > 0:
+                return children[first].get_resolved_cursor(self)
+            return self
+        elif self.result_type.kind == TypeKind.RECORD:
+            return self.get_children()[0].get_resolved_cursor()
+        elif self.kind == CursorKind.CLASS_DECL or self.kind == CursorKind.ENUM_DECL or self.kind == CursorKind.CLASS_TEMPLATE:
+            return self
+        elif self.kind == CursorKind.TEMPLATE_TYPE_PARAMETER:
+            return self
+        elif self.kind.is_reference():
+            ref = self.get_reference()
+            if ref == self:
+                #print("none1")
+                return None
+            elif not parent is None and ref == parent:
+                return self
+            return ref.get_resolved_cursor(self)
+        elif self.kind.is_declaration():
+            #print("decl: %s, %s" % (self.spelling, self.kind))
+            for child in self.get_children():
+                #print("%s, %s, %s, %s" % (child.kind, child.spelling, child.type.kind, child.result_type.kind))
+                if child.kind == CursorKind.TYPE_REF:
+                    c = child.get_reference()
+                    #print("will return this type: ")
+                    #self.dump(c)
+                    if c == child:
+                        #print("none3")
+                        return None
+                    return c.get_resolved_cursor()
+                elif child.kind == CursorKind.ENUM_DECL:
+                    return child
+                elif child.kind == CursorKind.TEMPLATE_REF:
+                    return self
+        #if self.kind == CursorKind.TYPE_REF:
+        #    return self.get_reference()
+
+        #if self.kind == CursorKind.TYPEDEF_DECL:
+        #    print("here")
+        #    self.dump_cursor(self)
+        # return self.get_type_from_:cursor(self, self.get_reference())
+        if self.result_type.kind == TypeKind.POINTER or self.result_type.kind == TypeKind.LVALUEREFERENCE or self.result_type.kind == TypeKind.RVALUEREFERENCE:
+            return self.result_type.get_pointee().get_declaration()
+
+        # print("none2")
+        # self.dump_self()
+        # print("self dumped")
+        return self
+
+    def __repr__(self):
+        if self is None or self.kind.is_invalid():
+            return "cursor: None"
+        ret =  "cursor: %s, %s, %s, %s, %s, %s" % (self.kind, self.type.kind, self.result_type.kind, self.spelling, self.displayname, self.get_usr())
+        source = "<unknown>" if self.location.file is None else self.location.file.name
+        ret += "\ndefined at: %s, %d, %d" % (source, self.location.line, self.location.column)
+        return ret
+
+    def dump_self(self):
+        print(self)
+
+    def dump(self, once=True):
+        indent = "" if once else "    "
+        print("%s this: %s, %s, %s, %s, %s, %s, %s" % (indent, self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind, self.get_usr(), self.location))
+        children = self.get_children()
+        for i in range(len(children)):
+            child = children[i]
+            print("%s    %d: %s, %s, %s, %s, %s, %s" % (indent, i, child.kind, child.spelling, child.displayname, child.type.kind, child.result_type.kind, child.get_usr()))
+            if child.kind == CursorKind.CXX_ACCESS_SPEC_DECL:
+                print("    %s access: %s" % (indent, child.get_cxx_access_specifier()))
+            if child.result_type.kind == TypeKind.POINTER:
+                pointee = child.result_type.get_pointee()
+                c3 = pointee.get_declaration()
+                if not c3 is None and not c3.kind.is_invalid():
+                    print("    %s dumping pointee" % indent)
+                    c3.dump_self()
+                else:
+                    print("c3 == null")
+            if child.kind.is_reference() and child.kind != CursorKind.NAMESPACE_REF and once:
+                child.get_reference().dump(False)
+            elif child.kind == CursorKind.COMPOUND_STMT and once:
+                child.dump(False)
+
+    def get_returned_cursor(self):
+        ret = None
+        if self.kind == CursorKind.FUNCTION_DECL or \
+                    self.kind == CursorKind.FIELD_DECL or \
+                    self.kind == CursorKind.CXX_METHOD or \
+                    self.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL or \
+                    self.kind == CursorKind.OBJC_CLASS_METHOD_DECL or \
+                    self.kind == CursorKind.OBJC_PROPERTY_DECL or \
+                    self.kind == CursorKind.OBJC_IVAR_DECL or \
+                    self.kind == CursorKind.VAR_DECL or \
+                    self.kind == CursorKind.PARM_DECL:
+            children = self.get_children()
+            if len(children) > 0:
+                c = children.pop(0)
+                while len(children):
+                    next = children.pop(0)
+                    if c.kind == CursorKind.STRUCT_DECL or c.kind == CursorKind.TEMPLATE_REF or (c.kind == CursorKind.TYPE_REF and next.kind != CursorKind.TYPE_REF):
+                        break
+                    c = next
+
+                if c.kind.is_reference():
+                    reference = c.get_reference()
+                    definition = reference.get_definition()
+                    if definition is None or reference.kind == CursorKind.OBJC_INTERFACE_DECL:
+                        definition = reference
+
+                    if definition is None or definition == c:
+                        return None
+                    return definition.get_resolved_cursor()
+                elif c.kind == CursorKind.STRUCT_DECL or c.kind == CursorKind.UNION_DECL:
+                    return c
+                else:
+                    return None
+            else:
+                #print("none4")
+                return None
+        # if self.kind.is_reference():
+        #     ref = self.get_reference()
+        #     if self == ref:
+        #         return None
+        #     return ref.get_resolved_cursor()
+        # TODO: cleanup
+        #print("getting returned cursor of %s, %s, %s, %s" % (self.kind, self.spelling, self.type.kind, self.result_type.kind))
+        if self.kind.is_declaration():
+            ret = self #.get_resolved_cursor()
+        if self.result_type.kind == TypeKind.RECORD:
+            ret = self.get_children()[0]
+        if self.result_type.kind == TypeKind.POINTER or \
+                    self.result_type.kind == TypeKind.LVALUEREFERENCE or \
+                    self.result_type.kind == TypeKind.RVALUEREFERENCE:
+
+            pointee = self.result_type.get_pointee()
+            #print("pointee kind: %s" % (pointee.kind))
+            ret = pointee.get_declaration()
+            if ret is None or ret.kind.is_invalid():
+                #ret = pointee.get_canonical().get_declaration()
+                ret = self.result_type.get_result().get_declaration()
+
+        #ret.dump_self()
+        if not ret is None and not ret.kind.is_invalid():
+            #ret.dump()
+            return ret.get_resolved_cursor()
+        #print("none5")
+        return None
+
+    def get_member(self, membername, function):
+        #print("want to get the cursor for: %s->%s%s" % (self.spelling, membername, "()" if function else ""))
+        for child in self.get_children():
+            if function and (child.kind == CursorKind.CXX_METHOD or child.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL) and child.spelling == membername:
+                return child
+            elif not function and (child.kind == CursorKind.FIELD_DECL or child.kind == CursorKind.VAR_DECL or child.kind == CursorKind.OBJC_IVAR_DECL) and child.spelling == membername:
+                return child
+            elif child.kind == CursorKind.UNION_DECL:
+                ret = child.get_member(membername, function)
+                if not ret is None:
+                    return ret
+            # elif child.spelling == membername:
+            #     print("unhandled kind: %s" % child.kind)
+        if self.kind == CursorKind.OBJC_INTERFACE_DECL:
+            for child in self.get_children():
+                if child.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL and child.spelling == membername:
+                    ret = True
+                    for c2 in child.get_children():
+                        if c2.kind == CursorKind.PARM_DECL:
+                            ret = False
+                            break
+                    if ret:
+                        return child
+
+        # Not found in this class, try base class
+        for child in self.get_children():
+            if child.kind == CursorKind.CXX_BASE_SPECIFIER:
+                ret = child.get_reference().get_member(membername, function)
+                if ret:
+                    return ret
+        return None
+
+
+
     @staticmethod
     def from_result(res, fn, args):
         assert isinstance(res, Cursor)
@@ -1532,6 +1816,10 @@ class Cursor(Structure):
 
         res._tu = args[0]._tu
         return res
+
+
+
+
 
 class StorageClass(object):
     """
@@ -1624,6 +1912,9 @@ class TypeKind(BaseEnumeration):
 
     def __repr__(self):
         return 'TypeKind.%s' % (self.name,)
+
+    def is_invalid(self):
+        return self.value == 0
 
 TypeKind.INVALID = TypeKind(0)
 TypeKind.UNEXPOSED = TypeKind(1)

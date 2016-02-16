@@ -24,19 +24,10 @@ freely, subject to the following restrictions:
 import os
 import sys
 
-from common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
-                    get_language, LockedVariable, run_in_main_thread, error_message,\
-                    display_user_selection, get_cpu_count, status_message, bencode, bdecode,\
-                    sencode, sdecode, are_we_there_yet, look_for_file
 from clang import cindex
+from common import *
 from parsehelp import *
-
-try:
-    import Queue
-except:
-    import queue as Queue
-
-
+import Queue
 import time
 import shlex
 import subprocess
@@ -109,24 +100,7 @@ class CacheCompletionResults(Structure):
 
 
 cachelib = get_cache_library()
-if cachelib:
-    try:
-        pass
-        #import json
-        #_getVersion = cachelib.getVersion
-        #_getVersion.restype = c_char_p
-        #f = open("%s/../package.json" % scriptpath)
-        #data = json.load(f)
-        #f.close()
-        #json = data["packages"][0]["platforms"]["*"][0]["version"]
-        #lib = _getVersion().decode(sys.getdefaultencoding())
-        #print("Have SublimeClang package: %s" % json)
-        #print("Have SublimeClang libcache: %s" % lib)
-        #assert lib == json
-    except:
-        import traceback
-        traceback.print_exc()
-        error_message("Your SublimeClang libcache is out of date. Try restarting ST2 and if that fails, uninstall SublimeClang, restart ST2 and install it again.")
+
 
 _createCache = cachelib.createCache
 _createCache.restype = POINTER(_Cache)
@@ -212,9 +186,9 @@ class Cache:
             typename = typename[idx+2:]
         if "<" in typename:
             typename = typename[:typename.find("<")]
-        namespaces = extract_used_namespaces(data)
+        namespaces = parsehelp.extract_used_namespaces(data)
         namespaces.insert(0, None)
-        namespaces.insert(1, extract_namespace(data))
+        namespaces.insert(1, parsehelp.extract_namespace(data))
         cursor = None
         for ns in namespaces:
             nsarg = None
@@ -324,7 +298,7 @@ class Cache:
 
 
     def complete(self, data, prefix):
-        line = extract_line_at_offset(data, len(data)-1)
+        line = parsehelp.extract_line_at_offset(data, len(data)-1)
         before = line
         if len(prefix) > 0:
             before = line[:-len(prefix)]
@@ -373,9 +347,9 @@ class Cache:
 
                     if comp:
                         inherits = False
-                        clazz = extract_class_from_function(data)
+                        clazz = parsehelp.extract_class_from_function(data)
                         if clazz == None:
-                            clazz = extract_class(data)
+                            clazz = parsehelp.extract_class(data)
                         if clazz != None:
                             c2 = self.find_type(data, clazz)
                             inherits = self.inherits(c, c2)
@@ -400,15 +374,15 @@ class Cache:
             comp = data
             if len(prefix) > 0:
                 comp = data[:-len(prefix)]
-            typedef = get_type_definition(comp)
+            typedef = parsehelp.get_type_definition(comp)
             if typedef == None:
                 return None
             line, column, typename, var, tocomplete = typedef
             if typename == None:
                 return None
             cursor = None
-            template = solve_template(get_base_type(typename))
-            pointer = get_pointer_level(typename)
+            template = parsehelp.solve_template(parsehelp.get_base_type(typename))
+            pointer = parsehelp.get_pointer_level(typename)
             if var == "this":
                 pointer = 1
 
@@ -434,9 +408,9 @@ class Cache:
                         ret = []
             else:
                 # Probably a member of the current class
-                clazz = extract_class_from_function(data)
+                clazz = parsehelp.extract_class_from_function(data)
                 if clazz == None:
-                    clazz = extract_class(data)
+                    clazz = parsehelp.extract_class(data)
                 if clazz != None:
                     cursor = self.find_type(data, clazz)
                     if cursor != None and not cursor.kind.is_invalid():
@@ -554,7 +528,7 @@ class Cache:
                     if match.group(1):
                         member = match.group(1)
                         if "[" in member:
-                            member = get_base_type(member)
+                            member = parsehelp.get_base_type(member)
                         if "]" in member:
                             member = member[:member.find("]")]
                         if m2 == " ":
@@ -570,9 +544,9 @@ class Cache:
                     m2 = nextm2
 
                 if r != None and not r.kind.is_invalid() and (pointer == 0 or r.kind == cindex.CursorKind.OBJC_INTERFACE_DECL):
-                    clazz = extract_class_from_function(data)
+                    clazz = parsehelp.extract_class_from_function(data)
                     if clazz == None:
-                        clazz = extract_class(data)
+                        clazz = parsehelp.extract_class(data)
                     selfcompletion = clazz == r.spelling
                     comp = cache_completeCursor(self.cache, r)
                     replaces = []
@@ -635,16 +609,16 @@ class Cache:
             cached_results = cache_complete_startswith(self.cache, bencode(prefix))
             if cached_results:
                 ret = [(x.display, x.insert) for x in cached_results[0]]
-            variables = extract_variables(data) if not constr else []
+            variables = parsehelp.extract_variables(data) if not constr else []
             var = [("%s\t%s" % (v[1], re.sub(r"(^|\b)\s*static\s+", "", v[0])), v[1]) for v in variables]
             if len(var) and ret == None:
                 ret = []
             for v in var:
                 if v[1].startswith(prefix):
                     ret.append(v)
-            clazz = extract_class_from_function(data)
+            clazz = parsehelp.extract_class_from_function(data)
             if clazz == None:
-                clazz = extract_class(data)
+                clazz = parsehelp.extract_class(data)
             if clazz != None:
                 c = self.find_type(data, clazz)
                 if c != None and not c.kind.is_invalid():
@@ -655,8 +629,8 @@ class Cache:
                                     not (c.baseclass and c.access == cindex.CXXAccessSpecifier.PRIVATE):
                                 add = (c.display, c.insert)
                                 ret.append(add)
-            namespaces = extract_used_namespaces(data)
-            ns = extract_namespace(data)
+            namespaces = parsehelp.extract_used_namespaces(data)
+            ns = parsehelp.extract_namespace(data)
             if ns:
                 namespaces.append(ns)
             for ns in namespaces:
@@ -709,7 +683,7 @@ class ExtensiveSearch:
         elif len(self.options) > 2:
             self.found_callback(self.options[idx][1])
 
-    def __init__(self, cursor, spelling, found_callback, folders, opts, opts_script, name="", impl=True, search_re=None, file_re=None):
+    def __init__(self, cursor, spelling, found_callback, folders, opts, name="", impl=True, search_re=None, file_re=None):
         self.name = name
         if impl:
             self.re = re.compile(r"\w+[\*&\s]+(?:\w+::)?(%s\s*\([^;\{]*\))(?:\s*const)?(?=\s*\{)" % re.escape(spelling))
@@ -724,7 +698,6 @@ class ExtensiveSearch:
         self.spelling = spelling
         self.folders = folders
         self.opts = opts
-        self.opts_script = opts_script
         self.impl = impl
         self.target = ""
         self.cursor = None
@@ -849,7 +822,7 @@ class ExtensiveSearch:
                     self.candidates.put((name, match.group(0), line, column))
 
                 if fine_search and self.cursor and self.impl:
-                    tu2 = tuCache.get_translation_unit(name, self.opts, self.opts_script)
+                    tu2 = tuCache.get_translation_unit(name, self.opts)
                     if tu2 != None:
                         tu2.lock()
                         try:
@@ -892,10 +865,10 @@ class LockedTranslationUnit(LockedVariable):
         cursor = cindex.Cursor.get(self.var, self.fn,
                                        row, col)
         cursor_spelling = get_cursor_spelling(cursor)
-        word_under_cursor = extract_word_at_offset(data, offset)
+        word_under_cursor = parsehelp.extract_word_at_offset(data, offset)
         if word_under_cursor == "" and cursor != None:
             # Allow a parenthesis, brackets and some other non-name characters right after the name
-            match = re.search(r"(\w+)[\(\[\&\+\-\*\/]*$", extract_line_until_offset(data, offset))
+            match = re.search(r"(\w+)[\(\[\&\+\-\*\/]*$", parsehelp.extract_line_until_offset(data, offset))
             if match:
                 word_under_cursor = match.group(1)
         return cursor, cursor_spelling, word_under_cursor
@@ -912,7 +885,7 @@ class LockedTranslationUnit(LockedVariable):
             if cursor == None or cursor.kind.is_invalid() or cursor_spelling != word_under_cursor:
                 if cursor == None or cursor.kind.is_invalid():
                     cursor = None
-                ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
+                ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts)
                 return
             d = cursor.get_definition()
             if d != None and cursor != d:
@@ -949,7 +922,7 @@ class LockedTranslationUnit(LockedVariable):
                         for ending in endings:
                             f = "%s.%s" % (f[:f.rfind(".")], ending)
                             if f != self.fn and os.access(f, os.R_OK):
-                                tu2 = tuCache.get_translation_unit(f, self.opts, self.opts_script)
+                                tu2 = tuCache.get_translation_unit(f, self.opts)
                                 if tu2 == None:
                                     continue
                                 tu2.lock()
@@ -966,7 +939,7 @@ class LockedTranslationUnit(LockedVariable):
                                 finally:
                                     tu2.unlock()
                     if not target:
-                        ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
+                        ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts)
                         return
             else:
                 target = format_cursor(d)
@@ -996,8 +969,6 @@ class LockedTranslationUnit(LockedVariable):
             self.unlock()
 
         found_callback(target)
-
-
 
 class TranslationUnitCache(Worker):
     STATUS_PARSING      = 1
@@ -1067,12 +1038,12 @@ class TranslationUnitCache(Worker):
             self.busyList.unlock()
 
     def task_parse(self, data):
-        filename, opts, opts_script, on_done = data
+        filename, opts, on_done = data
         if self.add_busy(filename, self.task_parse, data):
             return
         try:
             self.set_status("Parsing %s" % filename)
-            self.get_translation_unit(filename, opts, opts_script)
+            self.get_translation_unit(filename, opts)
             self.set_status("Parsing %s done" % filename)
         finally:
             l = self.parsingList.lock()
@@ -1085,12 +1056,12 @@ class TranslationUnitCache(Worker):
             run_in_main_thread(on_done)
 
     def task_reparse(self, data):
-        filename, opts, opts_script, unsaved_files, on_done = data
+        filename, opts, unsaved_files, on_done = data
         if self.add_busy(filename, self.task_reparse, data):
             return
         try:
             self.set_status("Reparsing %s" % filename)
-            tu = self.get_translation_unit(filename, opts, opts_script, unsaved_files)
+            tu = self.get_translation_unit(filename, opts, unsaved_files)
             if tu != None:
                 tu.lock()
                 try:
@@ -1150,12 +1121,12 @@ class TranslationUnitCache(Worker):
                 pl.append(filename)
                 self.tasks.put((
                     self.task_reparse,
-                    (filename, self.get_opts(view), self.get_opts_script(view), unsaved_files, on_done)))
+                    (filename, self.get_opts(view), unsaved_files, on_done)))
         finally:
             self.parsingList.unlock()
         return ret
 
-    def add_ex(self, filename, opts, opts_script, on_done=None):
+    def add_ex(self, filename, opts, on_done=None):
         tu = self.translationUnits.lock()
         pl = self.parsingList.lock()
         try:
@@ -1163,7 +1134,7 @@ class TranslationUnitCache(Worker):
                 pl.append(filename)
                 self.tasks.put((
                     self.task_parse,
-                    (filename, opts, opts_script, on_done)))
+                    (filename, opts, on_done)))
         finally:
             self.translationUnits.unlock()
             self.parsingList.unlock()
@@ -1176,18 +1147,14 @@ class TranslationUnitCache(Worker):
             if filename not in tu and filename not in pl:
                 ret = True
                 opts = self.get_opts(view)
-                opts_script = self.get_opts_script(view)
                 pl.append(filename)
                 self.tasks.put((
                     self.task_parse,
-                    (filename, opts, opts_script, on_done)))
+                    (filename, opts, on_done)))
         finally:
             self.translationUnits.unlock()
             self.parsingList.unlock()
         return ret
-
-    def get_opts_script(self, view):
-        return expand_path(get_setting("options_script", "", view), view.window())
 
     def check_opts(self, view):
         key = view.file_name()
@@ -1211,24 +1178,16 @@ class TranslationUnitCache(Worker):
         finally:
             self.__options_cache.unlock()
 
-        opts = get_path_setting("options", [], view)
-        if not get_setting("dont_prepend_clang_includes", False, view):
-            opts.insert(0, "-I%s/clang/include" % scriptpath)
-        if get_setting("add_language_option", True, view):
-            language = get_language(view)
-            if language == "objc":
-                opts.append("-ObjC")
-            elif language == "objc++":
-                opts.append("-ObjC++")
-            else:
-                opts.append("-x")
-                opts.append(language)
-            additional_language_options = get_setting("additional_language_options", {}, view)
-            if language in additional_language_options:
-                opts.extend(additional_language_options[language] or [])
         self.debug_options = get_setting("debug_options", False)
         self.index_parse_options = get_setting("index_parse_options", 13, view)
+
+        opts = get_path_setting("options", [], view)
+
         if view.window() != None:
+            cpp_source_file = view.file_name()
+            project_opts = get_project_settings(cpp_source_file)
+            opts = opts + project_opts
+
             # At startup it's possible that the window is None and thus path expansion
             # might be wrong.
             cache = self.__options_cache.lock()
@@ -1239,29 +1198,13 @@ class TranslationUnitCache(Worker):
                 view.settings().add_on_change("sublimeclang.opts", lambda: run_in_main_thread(lambda: self.check_opts(view)))
         return list(opts)
 
-    def get_translation_unit(self, filename, opts=[], opts_script=None, unsaved_files=[]):
+    def get_translation_unit(self, filename, opts=[], unsaved_files=[]):
         if self.index == None:
             self.index = cindex.Index.create()
         tu = None
         tus = self.translationUnits.lock()
         if filename not in tus:
             self.translationUnits.unlock()
-            pre_script_opts = list(opts)
-            opts2 = []
-            for option in opts:
-                opts2.extend(complete_path(option))
-            opts = opts2
-
-            if opts_script:
-                # shlex.split barfs if fed with an unicode strings
-                args = shlex.split(sencode(opts_script)) + [filename]
-                process = subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
-                output = process.communicate()
-                if process.returncode:
-                    print("The options_script failed with code [%s]" % process.returncode)
-                    print(output[1])
-                else:
-                    opts += shlex.split(bdecode(output[0]))
 
             if self.debug_options:
                 print("Will compile file %s with the following options:\n%s" % (filename, opts))
@@ -1271,8 +1214,7 @@ class TranslationUnitCache(Worker):
                                   self.index_parse_options)
             if tu != None:
                 tu = LockedTranslationUnit(tu, filename)
-                tu.opts = pre_script_opts
-                tu.opts_script = opts_script
+                tu.opts = opts
                 tus = self.translationUnits.lock()
                 tus[filename] = tu
                 self.translationUnits.unlock()
@@ -1280,7 +1222,7 @@ class TranslationUnitCache(Worker):
                 print("tu is None...")
         else:
             tu = tus[filename]
-            recompile = tu.opts != opts or tu.opts_script != opts_script
+            recompile = tu.opts != opts
 
             if recompile:
                 del tus[filename]
@@ -1288,7 +1230,7 @@ class TranslationUnitCache(Worker):
 
             if recompile:
                 self.set_status("Options change detected. Will recompile %s" % filename)
-                self.add_ex(filename, opts, opts_script, None)
+                self.add_ex(filename, opts, None)
         return tu
 
     def remove(self, filename):
@@ -1297,12 +1239,4 @@ class TranslationUnitCache(Worker):
     def clear(self):
         self.tasks.put((self.task_clear, None))
 
-tuCache = None
-try:
-    # Dirty hack for ST3...
-    def init_tu():
-        global tuCache
-        tuCache = TranslationUnitCache()
-    are_we_there_yet(init_tu)
-except:
-    tuCache = TranslationUnitCache()
+tuCache = TranslationUnitCache()

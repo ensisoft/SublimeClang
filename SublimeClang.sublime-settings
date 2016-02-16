@@ -1,17 +1,5 @@
 {
 
-    // All options in here can also be specified in your project settings
-    // with a prepended "sublimeclang_" for example if you have
-    //
-    // "settings":
-    // {
-    //     "sublimeclang_show_visual_error_marks": false
-    // }
-    //
-    // in your project settings, this will override the settings specified
-    // in this file and in your user settings.
-
-
     // Whether or not the plugin is enabled. Useful if you want to disable
     // the plugin completely for a specific project.
     "enabled": true,
@@ -54,17 +42,10 @@
     // to refresh its contents
     "update_output_panel": true,
 
-    // Whether to apply a tmLanguage syntax file to the output panel
-    "output_panel_use_syntax_file": true,
-
-    // Specify syntax file for output panel
-    "output_panel_syntax_file": "Packages/SublimeClang/ErrorPanel.tmLanguage",
 
     // Whether or not to show the clang parser status in the status bar
     "show_status": true,
 
-    // When set to true, will display visual error markers.
-    "show_visual_error_marks": true,
 
     // When set to true, error marks will only be displayed when the error
     // panel is showing
@@ -170,26 +151,8 @@
         "-Wall"
     ],
 
-    // A command that can be run to fetch actual options for a source file in a build system.
-    // The script should print on stdout a list of space or newline separated options
-    // that will be appended to the static list in "options".
-    //
-    // This setting will also have its ${home}, ${project_path:} and ${folder:} tokens expanded
-    // and can be configured in project files.
-    //
-    // Example:
-    // "${project_path:scriptName.sh} someArgument1 someArgument2"
-    // if scriptName.sh is present under the project's folders, will be executed as:
-    // "/path/to/scriptName.sh someArgument1 someArgument2 currentViewFileName"
-    // before each time a file needs to be parsed by clang.
-    //
-    // An example options script for loading the exact compilation commands from
-    // a CMake json database is available at https://gist.github.com/3944250.
-    "options_script": "",
 
-    // If set to true, it'll not prepend the compiler options with the path to the
-    // included headers
-    "dont_prepend_clang_includes": false,
+
 
     // When set to true will output the final options used to the python console
     "debug_options": false,

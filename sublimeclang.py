@@ -20,42 +20,19 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
-try:
-    import sublime
-    import ctypes
-except:
-    sublime.error_message("""\
-Unfortunately ctypes can't be imported, so SublimeClang will not work.
 
-There is a work around for this to get it to work, \
-please see http://www.github.com/quarnster/SublimeClang for more details. """)
-import os
-import sys
+import sublime
+import ctypes
 
-# http://stackoverflow.com/questions/4383571/importing-files-from-different-folder-in-python
-sys.path.insert(0, '/home/enska/coding/SublimeClang')
-
-try:
-    import Queue
-    from internals.clang import cindex
-    from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
-                             update_statusbar, erase_error_marks, clang_error_panel
-    from internals.common import get_setting, get_settings, is_supported_language, \
-                                    get_language,get_cpu_count, run_in_main_thread, \
-                                    status_message, sencode, are_we_there_yet, plugin_loaded
-    from internals import translationunitcache
-    from internals.parsehelp import parsehelp
-    plugin_loaded()
-except ImportError:
-    import Queue as Queue
-    from internals.clang import cindex
-    from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
-                             update_statusbar, erase_error_marks, clang_error_panel
-    from internals.common import get_setting, get_settings, is_supported_language, \
-                                    get_language,get_cpu_count, run_in_main_thread, \
-                                    status_message, sencode, are_we_there_yet, plugin_loaded
-    from internals import translationunitcache
-    from internals.parsehelp import parsehelp
+import Queue as Queue
+from internals.clang import cindex
+from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
+   update_statusbar, erase_error_marks, clang_error_panel
+from internals.common import get_setting, get_settings, is_supported_language, \
+    get_language,get_cpu_count, run_in_main_thread, \
+    status_message, sencode, are_we_there_yet, plugin_loaded
+from internals import translationunitcache
+from internals.parsehelp import parsehelp
 
 import sublime_plugin
 from sublime import Region
@@ -65,6 +42,8 @@ import threading
 import time
 import traceback
 import os
+import json
+import sys
 
 def warm_up_cache(view, filename=None):
     if filename == None:
@@ -75,6 +54,9 @@ def warm_up_cache(view, filename=None):
     return stat
 
 
+# process, i.e. compile the given file identified by filename.
+# gathers the arguments from project files for compiling.
+# returns a translation unit object
 def get_translation_unit(view, filename=None, blocking=False):
     if filename == None:
         filename = sencode(view.file_name())
@@ -86,16 +68,22 @@ def get_translation_unit(view, filename=None, blocking=False):
             sublime.status_message("Hold your horses, cache still warming up")
             return None
 
-    #print(filename)
-    dir = os.path.dirname(filename)
-    
+    opts = translationunitcache.tuCache.get_opts(view)
 
-
-    return translationunitcache.tuCache.get_translation_unit(filename, translationunitcache.tuCache.get_opts(view), translationunitcache.tuCache.get_opts_script(view))
+    return translationunitcache.tuCache.get_translation_unit(filename, opts)
 
 navigation_stack = []
 clang_complete_enabled = True
 clang_fast_completions = True
+
+def format_current_file(view):
+    row, col = view.rowcol(view.sel()[0].a)
+    return "%s:%d:%d" % (sencode(view.file_name()), row + 1, col + 1)
+
+
+def navi_stack_open(view, target):
+    navigation_stack.append((format_current_file(view), target))
+    view.window().open_file(target, sublime.ENCODED_POSITION)
 
 
 class ClangTogglePanel(sublime_plugin.WindowCommand):
@@ -168,14 +156,8 @@ class ClangGoBack(sublime_plugin.TextCommand):
         return is_supported_language(sublime.active_window().active_view())
 
 
-def format_current_file(view):
-    row, col = view.rowcol(view.sel()[0].a)
-    return "%s:%d:%d" % (sencode(view.file_name()), row + 1, col + 1)
 
 
-def open(view, target):
-    navigation_stack.append((format_current_file(view), target))
-    view.window().open_file(target, sublime.ENCODED_POSITION)
 
 
 class ClangGotoBase(sublime_plugin.TextCommand):
@@ -187,7 +169,7 @@ class ClangGotoBase(sublime_plugin.TextCommand):
         if target == None:
             sublime.status_message("Don't know where the %s is!" % self.goto_type)
         elif not isinstance(target, list):
-            open(self.view, target)
+            navi_stack_open(self.view, target)
         else:
             self.targets = target
             self.view.window().show_quick_panel(target, self.open_file)
@@ -197,7 +179,7 @@ class ClangGotoBase(sublime_plugin.TextCommand):
             target = self.targets[idx]
             if isinstance(target, list):
                 target = target[1]
-            open(self.view, target)
+            navi_stack_open(self.view, target)
 
     def run(self, edit):
         view = self.view
@@ -287,13 +269,13 @@ def display_compilation_results(view):
 
                 severityName=""
                 if diag.severity == cindex.Diagnostic.Note:
-                    severityName="note"
+                    severityName="Note"
                 elif diag.severity == cindex.Diagnostic.Warning:
-                    severityName="warning"
+                    severityName="Warning"
                 elif diag.severity == cindex.Diagnostic.Error:
-                    severityName="error"
+                    severityName="Error"
                 elif diag.severity == cindex.Diagnostic.Fatal:
-                    severityName="fatal"
+                    severityName="Fatal"
 
                 err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column,
                                               severityName,
@@ -389,21 +371,32 @@ class ClangComplete(sublime_plugin.TextCommand):
 
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
-        s = get_settings()
-        s.clear_on_change("options")
-        s.add_on_change("options", self.load_settings)
+        plugin_settings = get_settings()
+        plugin_settings.clear_on_change("options")
+        plugin_settings.add_on_change("options", self.clear_cache)
+        plugin_settings.add_on_change("options", self.load_settings)
+
+        # wtf is this?
         are_we_there_yet(lambda: self.load_settings())
         self.recompile_timer = None
-        self.not_code_regex = re.compile("(string.)|(comment.)")
+        self.load_settings()
+
+    def clear_cache(self):
+        translationunitcache.tuCache.clear()
 
     def load_settings(self):
-        translationunitcache.tuCache.clear()
+        self.recompile_delay = get_setting("recompile_delay", 0)
+        self.cache_on_load = get_setting("cache_on_load", True)
+        self.not_code_regex = re.compile("(string.)|(comment.)")
+        self.time_completions = get_setting("time_completions", False)
+        self.remove_on_close = get_setting("remove_on_close", True)
         self.dont_complete_startswith = get_setting("dont_complete_startswith",
                                               ['operator', '~'])
         self.recompile_delay = get_setting("recompile_delay", 1000)
         self.cache_on_load = get_setting("cache_on_load", True)
         self.remove_on_close = get_setting("remove_on_close", True)
         self.time_completions = get_setting("time_completions", False)
+
 
     def is_member_kind(self, kind):
         return  kind == cindex.CursorKind.CXX_METHOD or \
@@ -522,9 +515,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                                   view.substr(Region(0, view.size()))))
         if not translationunitcache.tuCache.reparse(view, sencode(view.file_name()), unsaved_files,
                         self.reparse_done):
-
-            # Already parsing so retry in a bit
-            self.restart_recompile_timer(1)
+            self.restart_recompile_timer(1) # Already parsing so retry in a bit
 
     def on_activated(self, view):
         if is_supported_language(view) and get_setting("reparse_on_activated", True, view):
