@@ -175,7 +175,7 @@ class Cache:
         namespace = []
         while cursor != None and cursor.kind == cindex.CursorKind.NAMESPACE:
             namespace.insert(0, cursor.displayname)
-            cursor = cursor.get_lexical_parent()
+            cursor = cursor.lexical_parent
         return namespace
 
     def find_type(self, data, typename):
@@ -204,7 +204,7 @@ class Cache:
             cursor = cache_findType(self.cache, nsarg, nslen, bencode(typename))
             if cursor != None and not cursor.kind.is_invalid():
                 if cursor.kind.is_reference():
-                    cursor = cursor.get_referenced()
+                    cursor = cursor.referenced
                 break
 
         if (cursor != None and not cursor.kind.is_invalid()) or idx == -1:
@@ -223,7 +223,7 @@ class Cache:
         children = []
         for child in member.get_children():
             if not found:
-                ref = child.get_reference()
+                ref = child.referenced
                 if ref != None and ref == temp:
                     found = True
                 continue
@@ -270,7 +270,7 @@ class Cache:
             if c.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
                 for c2 in c.get_children():
                     if c2.kind == cindex.CursorKind.TYPE_REF:
-                        c2 = c2.get_reference()
+                        c2 = c2.referenced
                         return self.inherits(parent, c2)
         return False
 
@@ -832,7 +832,7 @@ class ExtensiveSearch:
                                         cand[1],
                                         cand[2])
                                 if cursor2 != None:
-                                    d = cursor2.get_canonical_cursor()
+                                    d = cursor2.canonical_cursor
                                     if d != None and cursor2 != d:
                                         if format_cursor(d) == self.cursor:
                                             self.target = format_cursor(cursor2)
@@ -857,11 +857,11 @@ class LockedTranslationUnit(LockedVariable):
         self.fn = fn
 
     def quickpanel_format(self, cursor):
-        return ["%s::%s" % (cursor.get_semantic_parent().spelling,
+        return ["%s::%s" % (cursor.semantic_parent.spelling,
                             cursor.displayname), format_cursor(cursor)]
 
     def get_impdef_prep(self, data, offset):
-        row, col = get_line_and_column_from_offset(data, offset)
+        row, col = parsehelp.get_line_and_column_from_offset(data, offset)
         cursor = cindex.Cursor.get(self.var, self.fn,
                                        row, col)
         cursor_spelling = get_cursor_spelling(cursor)
@@ -910,7 +910,7 @@ class LockedTranslationUnit(LockedVariable):
                 if cursor.kind == cindex.CursorKind.DECL_REF_EXPR or \
                         cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR or \
                         cursor.kind == cindex.CursorKind.CALL_EXPR:
-                    cursor = cursor.get_reference()
+                    cursor = cursor.referenced
 
                 if cursor.kind == cindex.CursorKind.CXX_METHOD or \
                         cursor.kind == cindex.CursorKind.FUNCTION_DECL or \
@@ -956,7 +956,7 @@ class LockedTranslationUnit(LockedVariable):
             if len(word_under_cursor) == 0:
                 found_callback(None)
                 return
-            ref = cursor.get_reference()
+            ref = cursor.referenced
             target = None
 
             if ref != None:

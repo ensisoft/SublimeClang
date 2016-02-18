@@ -66,6 +66,33 @@ from ctypes import *
 import collections
 
 import enumerations
+import sys
+
+# todo: what's this can we get rid of this??
+
+if sys.version[0] == '2':
+    def sencode(s):
+        return s.encode("utf-8")
+
+    def sdecode(s):
+        return s
+
+    def bencode(s):
+        return s
+    def bdecode(s):
+        return s
+else:
+    def sencode(s):
+        return s
+
+    def sdecode(s):
+        return s
+
+    def bencode(s):
+        return s.encode("utf-8")
+
+    def bdecode(s):
+        return s.decode("utf-8")
 
 # ctypes doesn't implicitly convert c_void_p to the appropriate wrapper
 # object. This is a problem, because it means that from_parameter will see an
@@ -321,7 +348,7 @@ class Diagnostic(object):
 
     @property
     def spelling(self):
-        return conf.lib.clang_getDiagnosticSpelling(self)
+        return bdecode(conf.lib.clang_getDiagnosticSpelling(self))
 
     @property
     def ranges(self):
@@ -540,7 +567,7 @@ class BaseEnumeration(object):
 
     def __repr__(self):
         return '%s.%s' % (self.__class__, self.name,)
-
+### Cursor Kinds ###
 
 class CursorKind(BaseEnumeration):
     """
@@ -1155,11 +1182,9 @@ _cxx_access_specifiers = {
        3: CXXAccessSpecifier("CX_CXXPrivate", 3)
 }
 
-
 CXXAccessSpecifier.PUBLIC = 1
 CXXAccessSpecifier.PROTECTED = 2
 CXXAccessSpecifier.PRIVATE = 3
-
 
 ### Cursors ###
 
@@ -1179,15 +1204,6 @@ class Cursor(Structure):
 
         return cursor
 
-    @staticmethod
-    def get(tu, filename, row, col):
-        file = File.from_name(tu, filename)
-        if file == None:
-            return None
-        location = conf.lib.clang_getLocation(tu, file, row, col)
-        return Cursor.from_location(tu, location)
-
-
     def __eq__(self, other):
         if other is None:
             return conf.lib.clang_equalCursors(self, conf.lib.clang_getNullCursor())
@@ -1203,11 +1219,34 @@ class Cursor(Structure):
         """
         return conf.lib.clang_isCursorDefinition(self)
 
+    @staticmethod
+    def get(tu, filename, row, col):
+        file = File.from_name(tu, filename)
+        if file == None:
+            return None
+        assert tu is not None
+        location = conf.lib.clang_getLocation(tu, file, row, col)
+        return Cursor.from_location(tu, location)
+
+    # forward ported from Quarnsters version
+    def get_included_file(self):
+        file = conf.lib.clang_getIncludedFile(self)
+        if file == None:
+            return None
+        return file
+
     def is_static_method(self):
         """Returns True if the cursor refers to a C++ member function or member
         function template that is declared 'static'.
         """
         return conf.lib.clang_CXXMethod_isStatic(self)
+
+    # Quarnster
+    def get_cxx_access_specifier(self):
+        maybe_index = conf.lib.clang_getCXXAccessSpecifier(self)
+        return _cxx_access_specifiers[maybe_index]
+
+
 
     def get_definition(self):
         """
@@ -1218,9 +1257,6 @@ class Cursor(Structure):
         # TODO: Should probably check that this is either a reference or
         # declaration prior to issuing the lookup.
         return conf.lib.clang_getCursorDefinition(self)
-
-    def get_reference(self):
-        return conf.lib.clang_getCursorReferenced(self)
 
     def get_usr(self):
         """Return the Unified Symbol Resultion (USR) for the entity referenced
@@ -1493,6 +1529,7 @@ class Cursor(Structure):
             # FIXME: There should just be an isNull method.
             assert child != conf.lib.clang_getNullCursor()
 
+            assert self._tu is not None
             # Create reference to TU so it isn't GC'd before Cursor.
             child._tu = self._tu
             children.append(child)
@@ -1547,6 +1584,7 @@ class Cursor(Structure):
         """
         return conf.lib.clang_getFieldDeclBitWidth(self)
 
+    # Quarnster
     def get_returned_pointer_level(self, curr=0):
         ret = 0
         type = None
@@ -1563,7 +1601,7 @@ class Cursor(Structure):
             elif type.kind == TypeKind.TYPEDEF:
                 children = self.get_children()
                 if len(children) == 1 and children[0].kind == CursorKind.TYPE_REF:
-                    ref = children[0].get_reference()
+                    ref = children[0].referenced
                     if ref != self:
                         return ret + ref.get_returned_pointer_level()
                     return ret
@@ -1579,7 +1617,7 @@ class Cursor(Structure):
 
         return ret
 
-
+    # Quarnster
     def get_resolved_cursor(self, parent=None):
         #print("get_type")
         if self.kind == CursorKind.OBJC_INTERFACE_DECL:
@@ -1614,7 +1652,7 @@ class Cursor(Structure):
         elif self.kind == CursorKind.TEMPLATE_TYPE_PARAMETER:
             return self
         elif self.kind.is_reference():
-            ref = self.get_reference()
+            ref = self.referenced
             if ref == self:
                 #print("none1")
                 return None
@@ -1626,7 +1664,7 @@ class Cursor(Structure):
             for child in self.get_children():
                 #print("%s, %s, %s, %s" % (child.kind, child.spelling, child.type.kind, child.result_type.kind))
                 if child.kind == CursorKind.TYPE_REF:
-                    c = child.get_reference()
+                    c = child.referenced
                     #print("will return this type: ")
                     #self.dump(c)
                     if c == child:
@@ -1652,6 +1690,7 @@ class Cursor(Structure):
         # print("self dumped")
         return self
 
+    # Quarnster
     def __repr__(self):
         if self is None or self.kind.is_invalid():
             return "cursor: None"
@@ -1660,9 +1699,11 @@ class Cursor(Structure):
         ret += "\ndefined at: %s, %d, %d" % (source, self.location.line, self.location.column)
         return ret
 
+    # Quarnster
     def dump_self(self):
         print(self)
 
+    # Quarnster
     def dump(self, once=True):
         indent = "" if once else "    "
         print("%s this: %s, %s, %s, %s, %s, %s, %s" % (indent, self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind, self.get_usr(), self.location))
@@ -1681,10 +1722,11 @@ class Cursor(Structure):
                 else:
                     print("c3 == null")
             if child.kind.is_reference() and child.kind != CursorKind.NAMESPACE_REF and once:
-                child.get_reference().dump(False)
+                child.referenced.dump(False)
             elif child.kind == CursorKind.COMPOUND_STMT and once:
                 child.dump(False)
 
+    # Quarnster
     def get_returned_cursor(self):
         ret = None
         if self.kind == CursorKind.FUNCTION_DECL or \
@@ -1706,7 +1748,7 @@ class Cursor(Structure):
                     c = next
 
                 if c.kind.is_reference():
-                    reference = c.get_reference()
+                    reference = c.referenced
                     definition = reference.get_definition()
                     if definition is None or reference.kind == CursorKind.OBJC_INTERFACE_DECL:
                         definition = reference
@@ -1777,7 +1819,7 @@ class Cursor(Structure):
         # Not found in this class, try base class
         for child in self.get_children():
             if child.kind == CursorKind.CXX_BASE_SPECIFIER:
-                ret = child.get_reference().get_member(membername, function)
+                ret = child.get_reference.get_member(membername, function)
                 if ret:
                     return ret
         return None
@@ -1791,21 +1833,25 @@ class Cursor(Structure):
         if res == conf.lib.clang_getNullCursor():
             return None
 
+        # TODO: Fix this !
+        # see the comments in from_result at line 2118
+
+
         # Store a reference to the TU in the Python object so it won't get GC'd
         # before the Cursor.
-        tu = None
-        for arg in args:
-            if isinstance(arg, TranslationUnit):
-                tu = arg
-                break
+        # tu = None
+        # for arg in args:
+        #     if isinstance(arg, TranslationUnit):
+        #         tu = arg
+        #         break
 
-            if hasattr(arg, 'translation_unit'):
-                tu = arg.translation_unit
-                break
+        #     if hasattr(arg, 'translation_unit'):
+        #         tu = arg.translation_unit
+        #         break
 
-        assert tu is not None
+        # assert tu is not None
 
-        res._tu = tu
+        #res._tu = tu
         return res
 
     @staticmethod
@@ -2069,14 +2115,21 @@ class Type(Structure):
     def from_result(res, fn, args):
         assert isinstance(res, Type)
 
-        tu = None
-        for arg in args:
-            if hasattr(arg, 'translation_unit'):
-                tu = arg.translation_unit
-                break
+        # TODO: Fix this !
+        # The assertion below fails and it appears like this function
+        # is called from libclang.so.
+        # The older version of this method did not have the assert.
+        # I think the bug is in some native code. Not sure what are
+        # the implications of violating this precondition.
 
-        assert tu is not None
-        res._tu = tu
+        # tu = None
+        # for arg in args:
+        #     if hasattr(arg, 'translation_unit'):
+        #         tu = arg.translation_unit
+        #         break
+
+        # assert tu is not None
+        # res._tu = tu
 
         return res
 
@@ -2460,6 +2513,13 @@ class CodeCompletionResults(ClangObject):
 
         return DiagnosticsItr(self)
 
+# quarnsters's copy
+def makeString(value):
+    if not isinstance(value, str):
+        value = value.encode("ascii", "ignore")
+    if not isinstance(value, str):
+        raise(TypeError,'Unexpected unsaved file contents.')
+    return value
 
 class Index(ClangObject):
     """
@@ -2592,18 +2652,21 @@ class TranslationUnit(ClangObject):
 
         args_array = None
         if len(args) > 0:
+            args = [bencode(a) for a in args] # Quarnster
             args_array = (c_char_p * len(args))(* args)
 
         unsaved_array = None
         if len(unsaved_files) > 0:
             unsaved_array = (_CXUnsavedFile * len(unsaved_files))()
             for i, (name, contents) in enumerate(unsaved_files):
-                if hasattr(contents, "read"):
-                    contents = contents.read()
+                # quarnster
+                #if hasattr(contents, "read"):
+                #    contents = contents.read()
+                value = bencode(makeString(value))
 
-                unsaved_array[i].name = name
-                unsaved_array[i].contents = contents
-                unsaved_array[i].length = len(contents)
+                unsaved_array[i].name = bencode(name) # quarnster
+                unsaved_array[i].contents = value #contents
+                unsaved_array[i].length = len(value) #len(contents)
 
         ptr = conf.lib.clang_parseTranslationUnit(index, filename, args_array,
                                     len(args), unsaved_array,
@@ -2776,14 +2839,15 @@ class TranslationUnit(ClangObject):
         if len(unsaved_files):
             unsaved_files_array = (_CXUnsavedFile * len(unsaved_files))()
             for i,(name,value) in enumerate(unsaved_files):
-                if not isinstance(value, str):
+                #if not isinstance(value, str):
                     # FIXME: It would be great to support an efficient version
                     # of this, one day.
-                    value = value.read()
-                    print(value)
-                if not isinstance(value, str):
-                    raise TypeError('Unexpected unsaved file contents.')
-                unsaved_files_array[i].name = name
+                #    value = value.read()
+                #    print(value)
+                #if not isinstance(value, str):
+                #    raise TypeError('Unexpected unsaved file contents.')
+                value = bencode(makeString(value))
+                unsaved_files_array[i].name = bencode(name)
                 unsaved_files_array[i].contents = value
                 unsaved_files_array[i].length = len(value)
         ptr = conf.lib.clang_reparseTranslationUnit(self, len(unsaved_files),
@@ -2840,13 +2904,14 @@ class TranslationUnit(ClangObject):
         if len(unsaved_files):
             unsaved_files_array = (_CXUnsavedFile * len(unsaved_files))()
             for i,(name,value) in enumerate(unsaved_files):
-                if not isinstance(value, str):
+                #if not isinstance(value, str):
                     # FIXME: It would be great to support an efficient version
                     # of this, one day.
-                    value = value.read()
-                    print(value)
-                if not isinstance(value, str):
-                    raise TypeError('Unexpected unsaved file contents.')
+                #    value = value.read()
+                #    print(value)
+                #if not isinstance(value, str):
+                #    raise TypeError('Unexpected unsaved file contents.')
+                value = makeString(value)
                 unsaved_files_array[i].name = name
                 unsaved_files_array[i].contents = value
                 unsaved_files_array[i].length = len(value)
@@ -2883,7 +2948,7 @@ class File(ClangObject):
     @property
     def name(self):
         """Return the complete file and path name of the file."""
-        return conf.lib.clang_getCString(conf.lib.clang_getFileName(self))
+        return bdecode(conf.lib.clang_getCString(conf.lib.clang_getFileName(self)))
 
     @property
     def time(self):
