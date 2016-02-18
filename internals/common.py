@@ -84,16 +84,6 @@ try:
         else:
             sublime.error_message(msg)
 
-    language_regex = re.compile("(?<=source\.)[\w+#]+")
-
-
-    def get_language(view):
-        caret = view.sel()[0].a
-        language = language_regex.search(view.scope_name(caret))
-        if language == None:
-            return None
-        return language.group(0)
-
 
     def is_supported_language(view):
         if view.is_scratch() or not get_setting("enabled", True, view) or view.file_name() == None:
@@ -234,9 +224,6 @@ except:
 
     def get_setting(key, default=None, view=None):
         return default
-
-    def get_language(view):
-        return "c++"
 
     def run_in_main_thread(func):
         func()

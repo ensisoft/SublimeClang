@@ -36,6 +36,7 @@ from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
 
 import re
 import threading
+import collections
 
 scriptpath = os.path.dirname(os.path.abspath(__file__))
 
@@ -970,16 +971,72 @@ class LockedTranslationUnit(LockedVariable):
 
         found_callback(target)
 
+# our supported languages
+class Language:
+    CPP    = 1    # C++ (Yay!)
+    C      = 2    # Plain C (Yuck)
+    ObjC   = 3    # Objective C
+    ObjCPP = 4    # Objective C++
+    Other  = 5    # whatever else
+
+    def __init__(self, val):
+        self.value = val
+
+    def is_supported(self):
+        assert self.value is not None
+        if self.value == Language.Other:
+            return False
+        return True
+
+    def __str__(self):
+        if self.value == Language.CPP:
+            return "C++"
+        elif self.value == Language.C:
+            return "C"
+        elif self.value == Language.ObjC:
+            return "Objective C"
+        elif self.value == Language.ObjCPP:
+            return "Objective C++"
+        return "Other"
+
+
+class CompileOptions(object):
+    def __init__(self, lang, sys_includes):
+        assert lang is not None
+        assert lang.is_supported()
+
+        self.index_parse_type = 13
+        self.system_includes  = sys_includes
+        self.language_options = []
+        self.project_options  = []
+        self.language         = lang
+
+    @property
+    def index_type(self):
+        return self.index_parse_type
+
+    def is_valid(self):
+        if system_includes == []:
+            return False
+        return True
+
+    def __str__(self):
+        s = ' -isystem '.join(self.system_includes)
+        s = s + '\n'
+        s = s + ' '.join(self.language_options)
+        s = s + ' '.join(self.project_options)
+        return s
+
+    __repr__ = __str__
+
 class TranslationUnitCache(Worker):
     STATUS_PARSING      = 1
     STATUS_REPARSING    = 2
     STATUS_READY        = 3
     STATUS_NOT_IN_CACHE = 4
 
-
-
-    def __init__(self):
-        workerthreadcount = get_setting("worker_threadcount", -1)
+    def __init__(self, num_threads):
+        workerthreadcount = num_threads
         self.as_super = super(TranslationUnitCache, self)
         self.as_super.__init__(workerthreadcount)
         self.translationUnits = LockedVariable({})
@@ -1239,4 +1296,4 @@ class TranslationUnitCache(Worker):
     def clear(self):
         self.tasks.put((self.task_clear, None))
 
-tuCache = TranslationUnitCache()
+tuCache =  None #TranslationUnitCache()

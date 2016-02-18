@@ -3895,42 +3895,38 @@ class Config:
         return lib
 
     def get_filename(self):
-        if Config.library_file:
-            return Config.library_file
-
         import platform
         import os.path
-        name = platform.system()
-        file = ""
+        platform = platform.system()
+        filename = ""
 
-        if name == 'Darwin':
-            file = 'libclang.dylib'
-        elif name == 'Windows':
-            file = 'libclang.dll'
-        else:
+        if platform == 'Darwin':
+            filename = 'libclang.dylib'
+        elif platform == 'Windows':
+            filename = 'libclang.dll'
+        elif platform == 'Linux':
             if os.path.exists("/usr/lib/libclang.so"):
-                file = '/usr/lib/libclang.so'
+                filename = '/usr/lib/libclang.so'
             elif os.path.exists("/usr/lib/llvm-3.7/lib/libclang.so"):
-                file = '/usr/lib/llvm-3.7/lib/libclang.so'
+                filename = '/usr/lib/llvm-3.7/lib/libclang.so'
             elif os.path.exists("/usr/lib/llvm-3.6/lib/libclang.so"):
-                file = '/usr/lib/llvm-3.6/lib/libclang.so'
+                filename = '/usr/lib/llvm-3.6/lib/libclang.so'
+            # try home
+            if filename == "":
+                userhome = os.path.expanduser("~")
+                filename = userhome + "/bin/clang-3.7.1/lib/libclang.so"
+        else:
+            raise libclangError("Unsupported Operating System.")
 
-        # MODIFY HERE.
-        if file == "":
-            file = "~/bin/clang-3.7.1/lib/libclang.so"
-
-        # if Config.library_path:
-        #     file = Config.library_path + '/' + file
-
-        return file
+        if filename == "":
+            raise LibclangError("Unable to locate libclang library.")
+        return filename
 
     def get_cindex_library(self):
         try:
             library = cdll.LoadLibrary(self.get_filename())
         except OSError as e:
-            msg = str(e) + ". To provide a path to libclang use " \
-                           "Config.set_library_path() or " \
-                           "Config.set_library_file()."
+            msg = "Failed to load libclang. " + str(e)
             raise LibclangError(msg)
 
         return library

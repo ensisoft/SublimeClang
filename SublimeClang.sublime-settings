@@ -22,10 +22,6 @@
     // keyboard toggle is set to.
     "enable_fast_completions": true,
 
-    // Delay in ms until recompiling the file after the buffer is modified
-    // Set to 0 to disable.
-    // You probably also want to change the reparse_use_dirty_buffer
-    "recompile_delay": 0,
 
     // Whether or not to hide the clang output panel when it's empty
     "hide_output_when_empty": false,
@@ -80,13 +76,14 @@
     // (automatic alt+d,alt+b) when the file is closed
     "pop_on_close": true,
 
-    // When set to true a reparse command will be triggered
-    // when a view is activated
-    "reparse_on_activated": true,
+    // set to true to compile the file when the window is focused.
+    "reparse_on_focus": true,
 
-    // When set to true a reparse command will be triggered
-    // when a view is saved
+    // set true to compile the file when the file is saved.
     "reparse_on_save": true,
+
+    // set true to compile the file on the fly whenever it's modified
+    "reparse_on_edit": false,
 
     // Whether to use the saved file or the (possibly) dirty buffer contents when reparsing
     "reparse_use_dirty_buffer": false,
@@ -127,13 +124,10 @@
     "additional_language_options":
     {
         // For example, you can use "c++": ["-std=c++11"] to enable C++11 features.
-        "c++" : [],
-        "c": [],
-        "objc": [],
-        "objc++": []
+        "c++" : ["-Wall"],
+        "c"   : ["-Wall"]
     },
 
-      
     // system wide settings for SublimeClang,
     // very cryptic, run your clang with the following command
     // $ clang++ -### -c hello.cpp
@@ -141,17 +135,37 @@
     // feeds to the frontend (cc1)
     // copy the ones called -internal-isystem and remove the -internal
     // part and then put them here.
-    "options":
+    // TODO: solve this and make this automatic somehow
+    // "options":
+    // [
+    //     "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0",
+    //     "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/x86_64-unknown-linux-gnu",
+    //     "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/backward",
+    //     "-isystem", "/usr/local/include",
+    //     "-isystem", "/usr/bin/../lib/clang/3.7.1/include",
+    //     "-Wall"
+    // ],
+
+    "system_include_paths":
     [
-        "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0",
-        "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/x86_64-unknown-linux-gnu",
-        "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/backward",
-        "-isystem", "/usr/local/include",
-        "-isystem", "/usr/bin/../lib/clang/3.7.1/include",    
-        "-Wall"
+    "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8",
+    "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8",
+    "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8",
+    "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/backward",
+    "/usr/local/include",
+    "/home/svaisanen/bin/clang-3.7.1/bin/../lib/clang/3.7.1/include"
     ],
 
-
+    "options":
+    [
+    "-isystem", "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8",
+    "-isystem", "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8",
+    "-isystem", "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8",
+    "-isystem", "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/backward",
+    "-isystem", "/usr/local/include",
+    "-isystem", "/home/svaisanen/bin/clang-3.7.1/bin/../lib/clang/3.7.1/include",
+    "-Wall"
+    ],
 
 
     // When set to true will output the final options used to the python console

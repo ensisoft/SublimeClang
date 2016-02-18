@@ -28,10 +28,14 @@ import Queue as Queue
 from internals.clang import cindex
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
    update_statusbar, erase_error_marks, clang_error_panel
-from internals.common import get_setting, get_settings, is_supported_language, \
-    get_language,get_cpu_count, run_in_main_thread, \
+from internals.common import get_setting, get_settings, \
+    get_cpu_count, run_in_main_thread, \
     status_message, sencode, are_we_there_yet, plugin_loaded
 from internals import translationunitcache
+from internals.translationunitcache import Language as Language
+from internals.translationunitcache import CompileOptions as CompileOptions
+from internals.translationunitcache import TranslationUnitCache as TUCache
+
 from internals.parsehelp import parsehelp
 
 import sublime_plugin
@@ -45,14 +49,65 @@ import os
 import json
 import sys
 
+# todo: what's with the sencode??
+def get_filename(view):
+    return sencode(view.file_name())
+
+# identify the language in the file the view displays
+def get_language(view):
+    language_regex = re.compile("(?<=source\.)[\w+#]+")
+
+    caret = view.sel()[0].a
+    language = language_regex.search(view.scope_name(caret))
+    if language == None:
+        return Language(Language.Other)
+    lang = language.group(0).lower()
+    if lang in "c++":
+        return Language(Language.CPP)
+    elif lang in "c":
+        return Language(Language.C)
+    elif lang in "objc":
+        return Language(Language.ObjC)
+    elif lang in "objc++":
+        return Language(Language.ObjCPP)
+
+    return Language(Language.Other)
+
+
+# collect all compilation options based on the view and the file
+# the user is currently working on.
+# creates a CompileOptions object.
+def collect_all_options(view, filename, language):
+    assert view is not None
+    assert filename is not None
+    assert language is not None
+    assert language.is_supported()
+
+    sys_includes = get_setting("system_include_paths", [])
+
+    opt = translationunitcache.CompileOptions(language, sys_includes)
+    opt.index_parse_type = get_setting("index_parse_options", 13, view)
+    opt.language_options = get_setting("additional_language_options", {language:[]})[language]
+    opt.project_options  = get_project_settings(filename)
+    return opt
+
+def get_cache():
+    # initialize cache if not done yet.
+    if translationunitcache.tuCache == None:
+        number_threads = get_setting("worker_threadcount", -1)
+        translationunitcache.tuCache = translationunitcache.TranslationUnitCache(number_threads)
+
+    return translationunitcache.tuCache
+
 def warm_up_cache(view, filename=None):
     if filename == None:
         filename = sencode(view.file_name())
-    stat = translationunitcache.tuCache.get_status(filename)
-    if stat == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE:
-        translationunitcache.tuCache.add(view, filename)
-    return stat
 
+    cache = get_cache()
+    state = cache.get_status(filename)
+    if state == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE:
+        cache.add(view, filename)
+    return state
 
 # process, i.e. compile the given file identified by filename.
 # gathers the arguments from project files for compiling.
@@ -60,6 +115,9 @@ def warm_up_cache(view, filename=None):
 def get_translation_unit(view, filename=None, blocking=False):
     if filename == None:
         filename = sencode(view.file_name())
+
+    cache = get_cache()
+
     if get_setting("warm_up_in_separate_thread", True, view) and not blocking:
         stat = warm_up_cache(view, filename)
         if stat == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE:
@@ -68,9 +126,16 @@ def get_translation_unit(view, filename=None, blocking=False):
             sublime.status_message("Hold your horses, cache still warming up")
             return None
 
-    opts = translationunitcache.tuCache.get_opts(view)
+    #opts = collect_all_options(view, filename)
+    #debug = get_setting("debug_options", False)
+    #if debug == True:
+    #    print("Compiling '%s'" % (filename))
+    #    print("Options:\n")
+    #    print(opts)
 
-    return translationunitcache.tuCache.get_translation_unit(filename, opts)
+    opts = cache.get_opts(view)
+
+    return cache.get_translation_unit(filename, opts)
 
 navigation_stack = []
 clang_complete_enabled = True
@@ -145,19 +210,25 @@ class ClangGoBackEventListener(sublime_plugin.EventListener):
 
 class ClangGoBack(sublime_plugin.TextCommand):
     def run(self, edit):
-        if len(navigation_stack) > 0:
-            self.view.window().open_file(
-                navigation_stack.pop()[0], sublime.ENCODED_POSITION)
+        assert len(navigation_stack) > 0
+
+        self.view.window().open_file(
+            navigation_stack.pop()[0], sublime.ENCODED_POSITION)
 
     def is_enabled(self):
-        return is_supported_language(sublime.active_window().active_view()) and len(navigation_stack) > 0
+        if len(navigation_stack) == 0:
+            return False
+        view = sublime.active_window().active_view()
+        lang = get_language(view)
+        if lang.is_supported() == False:
+            return False
+
+        return True
 
     def is_visible(self):
-        return is_supported_language(sublime.active_window().active_view())
-
-
-
-
+        view = sublime.active_window.active_view()
+        lang = get_language(view)
+        return lang.is_supported()
 
 
 class ClangGotoBase(sublime_plugin.TextCommand):
@@ -193,10 +264,12 @@ class ClangGotoBase(sublime_plugin.TextCommand):
 
 
     def is_enabled(self):
-        return is_supported_language(sublime.active_window().active_view())
+        view = sublime.active_window().active_view()
+        lang = get_language(view)
+        return lang.is_supported()
 
     def is_visible(self):
-        return is_supported_language(sublime.active_window().active_view())
+        return is_enabled()
 
 
 class ClangGotoImplementation(ClangGotoBase):
@@ -213,6 +286,8 @@ class ClangGotoDef(ClangGotoBase):
 
 class ClangClearCache(sublime_plugin.TextCommand):
     def run(self, edit):
+        if translationunitcache.tuCache is None:
+            return
         translationunitcache.tuCache.clear()
         sublime.status_message("Cache cleared!")
 
@@ -382,6 +457,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.load_settings()
 
     def clear_cache(self):
+        if translationunitcache.tuCache is None:
+            return
         translationunitcache.tuCache.clear()
 
     def load_settings(self):
@@ -396,7 +473,13 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.cache_on_load = get_setting("cache_on_load", True)
         self.remove_on_close = get_setting("remove_on_close", True)
         self.time_completions = get_setting("time_completions", False)
+        self.reparse_on_save  = get_setting("reparse_on_save", True)
+        self.reparse_on_focus = get_setting("reparse_on_focus", True)
+        self.reparse_on_edit = get_setting("reparse_on_edit", False)
 
+
+    def is_enabled(self, view):
+        return get_setting("enabled", view, True)
 
     def is_member_kind(self, kind):
         return  kind == cindex.CursorKind.CXX_METHOD or \
@@ -414,9 +497,16 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         return comp
 
     def on_query_completions(self, view, prefix, locations):
-        global clang_complete_enabled
-        if not is_supported_language(view) or not clang_complete_enabled or \
-                not view.match_selector(locations[0], '-string -comment -constant'):
+        if self.is_enabled(view) == False:
+            return []
+        if clang_complete_enabled == False:
+            return []
+        language = get_language(view)
+        if language.is_supported == False:
+            return []
+
+        # what's this??
+        if not view.match_selector(locations[0], '-string -comment -constant'):
             return []
 
         line = view.substr(sublime.Region(view.line(locations[0]).begin(), locations[0]))
@@ -507,46 +597,79 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                                                [self.recompile, 0])
         self.recompile_timer.start()
 
+
     def recompile(self):
         view = self.view
         unsaved_files = []
         if view.is_dirty() and get_setting("reparse_use_dirty_buffer", False, view):
             unsaved_files.append((sencode(view.file_name()),
                                   view.substr(Region(0, view.size()))))
+
+        if translationunitcache.tuCache == None:
+            number_threads = get_setting("worker_threadcount", -1)
+            translationunitcache.tuCache = translationunitcache.TranslationUnitCache(number_threads)
+
+
+
         if not translationunitcache.tuCache.reparse(view, sencode(view.file_name()), unsaved_files,
                         self.reparse_done):
             self.restart_recompile_timer(1) # Already parsing so retry in a bit
 
     def on_activated(self, view):
-        if is_supported_language(view) and get_setting("reparse_on_activated", True, view):
-            self.view = view
-            self.restart_recompile_timer(0.1)
-
-    def on_post_save(self, view):
-        if is_supported_language(view) and get_setting("reparse_on_save", True, view):
-            self.view = view
-            self.restart_recompile_timer(0.1)
-
-    def on_modified(self, view):
-        if (self.recompile_delay <= 0) or not is_supported_language(view):
+        if self.reparse_on_focus == False:
+            return
+        lang = get_language(view)
+        if lang.is_supported() == False:
             return
 
         self.view = view
-        self.restart_recompile_timer(self.recompile_delay / 1000.0)
+        self.restart_recompile_timer(0.1)
+
+    def on_post_save(self, view):
+        if self.reparse_on_save == False:
+            return
+        lang = get_language(view)
+        if lang.is_supported() == False:
+            return
+
+        self.view = view
+        self.restart_recompile_timer(0.1)
+
+    def on_modified(self, view):
+        if self.recompile_delay <= 0:
+            return
+        lang = get_language(view)
+        if lang.is_supported() == False:
+            return
+
+        self.view = view
+        self.restart_recompile_timer(0.1)
 
     def on_load(self, view):
-        if self.cache_on_load and is_supported_language(view):
-            warm_up_cache(view)
+        if self.cache_on_load == False:
+            return
+        lang = get_language(view)
+        if lang.is_supported() == False:
+            return
+
+        warm_up_cache(view)
 
     def on_close(self, view):
-        if self.remove_on_close and is_supported_language(view):
-            translationunitcache.tuCache.remove(sencode(view.file_name()))
+        if self.remove_on_close == False:
+            return
+        lang = get_language(view)
+        if lang.is_supported() == False:
+            return
+
+        filename = get_filename(view)
+        translationunitcache.tuCache.remove(filename)
 
     def on_query_context(self, view, key, operator, operand, match_all):
         if key == "clang_supported_language":
             if view == None:
                 view = sublime.active_window().active_view()
-            return is_supported_language(view)
+                lang = get_language(view)
+                return lang.is_supported()
         elif key == "clang_is_code":
             return self.not_code_regex.search(view.scope_name(view.sel()[0].begin())) == None
         elif key == "clang_complete_enabled":
