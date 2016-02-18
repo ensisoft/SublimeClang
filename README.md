@@ -5,6 +5,15 @@ Provides completions and code parsing through clang.
 
 Original plugin by Fredrik Ehnbom.
 
+Code completion.
+
+![Screenshot](https://raw.githubusercontent.com/ensisoft/SublimeClang/master/screens/completion.png "Code Completion")
+
+Error and warning parsing.
+
+![Screenshot](https://raw.githubusercontent.com/ensisoft/SublimeClang/master/screens/errors.png "Error Display")
+
+
 Installation
 ------------------------------------
 
