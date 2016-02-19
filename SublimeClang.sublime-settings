@@ -8,20 +8,6 @@
     // window when typing object., object-> or similar.
     "automatic_completion_popup": true,
 
-    // Number of worker threads to create. If set to -1 it'll create
-    // one thread per cpu
-    "worker_threadcount": -1,
-
-    // Whether or not fast completions are enabled. Usually you'd put
-    // "sublimeclang_enable_fast_completions": false, in the project
-    // settings if it's problematic in that project. You can also
-    // runtime toggle fast completions alt+d,alt+f, however if it
-    // is disabled for the current project (or globally in your
-    // user settings) it will not be enabled. In other words
-    // this setting, when set to false, overrides whatever the
-    // keyboard toggle is set to.
-    "enable_fast_completions": true,
-
 
     // Whether or not to hide the clang output panel when it's empty
     "hide_output_when_empty": false,
@@ -47,16 +33,6 @@
     // panel is showing
     "error_marks_on_panel_only": false,
 
-    // This is the bitmask sent to index.parse.
-    // For example, to be able to go to the definition of
-    // preprocessed macros, set it to 1, for using an implicit
-    // precompiled header set it to 4 and for caching completion
-    // results, set it to 8. Or all together 1+4+8=13.
-    //
-    // See http://clang.llvm.org/doxygen/group__CINDEX__TRANSLATION__UNIT.html#gab1e4965c1ebe8e41d71e90203a723fe9
-    // and http://clang.llvm.org/doxygen/Index_8h_source.html
-    // for more details
-    "index_parse_options": 13,
 
     // If set to false, the main thread will lock while parsing
     // the file, but commands will work the first time they are
@@ -116,11 +92,9 @@
         "operator"
     ],
 
-    // If set to true it'll add for example "-x c++" to the options for c++ files
-    "add_language_option": true,
+   
 
-    // Additional language specific options for clang.
-    // This option only works when "add_language_option" is set to true.
+    // Language specific options for clang.
     "additional_language_options":
     {
         // For example, you can use "c++": ["-std=c++11"] to enable C++11 features.
@@ -128,48 +102,19 @@
         "c"   : ["-Wall"]
     },
 
-    // system wide settings for SublimeClang,
-    // very cryptic, run your clang with the following command
-    // $ clang++ -### -c hello.cpp
-    // and you should get a bunch of parameters that the clang driver
-    // feeds to the frontend (cc1)
-    // copy the ones called -internal-isystem and remove the -internal
-    // part and then put them here.
-    // TODO: solve this and make this automatic somehow
-    // "options":
-    // [
-    //     "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0",
-    //     "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/x86_64-unknown-linux-gnu",
-    //     "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/backward",
-    //     "-isystem", "/usr/local/include",
-    //     "-isystem", "/usr/bin/../lib/clang/3.7.1/include",
-    //     "-Wall"
-    // ],
 
+    // TODO: solve this and make this automatic somehow
     "system_include_paths":
     [
-    "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8",
-    "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8",
-    "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8",
-    "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/backward",
-    "/usr/local/include",
-    "/home/svaisanen/bin/clang-3.7.1/bin/../lib/clang/3.7.1/include"
+        "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0",
+        "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/x86_64-unknown-linux-gnu",
+        "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/backward",
+        "-isystem", "/usr/local/include",
+        "-isystem", "/usr/bin/../lib/clang/3.7.1/include"
     ],
-
-    "options":
-    [
-    "-isystem", "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8",
-    "-isystem", "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8",
-    "-isystem", "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/x86_64-linux-gnu/c++/4.8",
-    "-isystem", "/usr/lib/gcc/x86_64-linux-gnu/4.8/../../../../include/c++/4.8/backward",
-    "-isystem", "/usr/local/include",
-    "-isystem", "/home/svaisanen/bin/clang-3.7.1/bin/../lib/clang/3.7.1/include",
-    "-Wall"
-    ],
-
 
     // When set to true will output the final options used to the python console
-    "debug_options": false,
+    "debug_options": true,
 
     // Scope used for markers in the clang output panel
     "marker_analyzer_output_panel_scope": "invalid",

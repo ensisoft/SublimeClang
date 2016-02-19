@@ -198,7 +198,10 @@ try:
     # Read the project specific settings from the project file.
     def read_project_settings(project_file):
         file = open(project_file, mode="r")
-        data = json.load(file)
+        try:
+            data = json.load(file)
+        except ValueError:
+            return None
         settings = data["settings"]
         if settings != None:
             return settings["sublimeclang_options"]

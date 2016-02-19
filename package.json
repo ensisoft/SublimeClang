@@ -4,14 +4,14 @@
         {
             "name": "SublimeClang",
             "description": "C/C++/ObjC/ObjC++ autocompletions and code navigation",
-            "author": "Fredrik Ehnbom (quarnster)",
-            "homepage": "http://github.com/quarnster/SublimeClang",
+            "author": "Fredrik Ehnbom (quarnster), Sami Väisänen (ensisoft)",
+            "homepage": "http://github.com/ensisoft/SublimeClang",
             "last_modified": "2012-12-13 15:30:00",
             "platforms": {
                 "*": [
                     {
                         "version": "1.0.41",
-                        "url": "https://downloads.sourceforge.net/project/sublimeclang/SublimeClang-1.0.41.sublime-package"
+                        "url": ""
                     }
                 ]
             }
