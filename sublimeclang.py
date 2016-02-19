@@ -461,7 +461,12 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
 
     def is_enabled(self, view):
-        return get_setting("enabled", view, True)
+        if get_setting("enabled", view, True) == False:
+            return False
+        elif clang_complete_enabled == False:
+            return False
+        
+        return True
 
     def is_member_kind(self, kind):
         return  kind == cindex.CursorKind.CXX_METHOD or \
@@ -572,6 +577,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             self.start_recompile_timer(1) # Already parsing so retry in a bit
 
     def on_activated(self, view):
+        if self.is_enabled() == False:
+            return
+
         if self.reparse_on_focus == False:
             return
         lang = get_language(view)
@@ -582,6 +590,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.start_recompile_timer(0.1)
 
     def on_post_save(self, view):
+        if self.is_enabled() == False:
+            return
+
         if self.reparse_on_save == False:
             return
         lang = get_language(view)
@@ -595,6 +606,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.start_recompile_timer(0.1)
 
     def on_modified(self, view):
+        if self.is_enabled() == False:
+            return
+
         if self.recompile_delay <= 0:
             return
         lang = get_language(view)
@@ -607,6 +621,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.start_recompile_timer(1.0)
 
     def on_load(self, view):
+        if self.is_enabled() == False:
+            return
+
         if self.cache_on_load == False:
             return
         lang = get_language(view)
