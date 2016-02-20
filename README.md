@@ -5,11 +5,15 @@ Provides completions and code parsing through clang.
 
 Original plugin by Fredrik Ehnbom.
 
-Code completion.
+Main Features:
+* code completion
+* error and warning parsing
+* go to declaration
+* clang analyze (tbd)
+
 
 ![Screenshot](https://raw.githubusercontent.com/ensisoft/SublimeClang/master/screens/completion.png "Code Completion")
 
-Error and warning parsing.
 
 ![Screenshot](https://raw.githubusercontent.com/ensisoft/SublimeClang/master/screens/errors.png "Error Display")
 
@@ -17,9 +21,9 @@ Error and warning parsing.
 Installation
 ------------------------------------
 
-Support for Linux only.
+Current support for Linux only.
 
-NOTE: This plugin requires ctypes Python plugin! 
+NOTE: This plugin requires ctypes Python plugin!
 Unfortunately the python bundled with SublimeText2 does
 not come with ctypes. By far the easiest way to work around
 this is by using the python 2.6 provided by your system.
