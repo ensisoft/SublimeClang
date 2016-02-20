@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 Copyright (c) 2011-2012 Fredrik Ehnbom
 
@@ -20,6 +22,14 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
+
+"""
+Copyright (c) 2016 Sami Väisänen, Ensisoft
+http://www.ensisoft.com
+"""
+
+
+
 
 from clang import cindex
 from common import *
