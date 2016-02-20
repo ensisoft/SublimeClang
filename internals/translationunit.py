@@ -309,7 +309,7 @@ class TranslationUnit(object):
                         if isinstance(template[0], cindex.Cursor):
                             temp = template[0]
                         else:
-                            temp = self.find_type(data, template[0])
+                            temp = self.__find_type(data, template[0])
                 elif temp.kind == cindex.CursorKind.CLASS_TEMPLATE:
                     template = self.solve_template_from_cursor(temp, member, template)
 
@@ -381,7 +381,7 @@ class TranslationUnit(object):
 
             if len(ret) == 0:
                 typename = "::".join(namespace)
-                c = self.find_type(data, typename)
+                c = self.__find_type(data, typename)
                 if c != None:
                     if c.kind == cindex.CursorKind.ENUM_DECL:
                         # It's not valid to complete enum::
