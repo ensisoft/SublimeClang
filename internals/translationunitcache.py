@@ -87,7 +87,9 @@ class CompileOptions(object):
         self.system_includes  = sys_includes
         self.language_options = None # array
         self.project_options  = None # array
+        self.project_file     = ""
         self.language         = lang
+
 
     def __str__(self):
         assert self.system_includes is not None
@@ -99,6 +101,8 @@ class CompileOptions(object):
 
         if self.language_options is not None:
             s = s + '\n'.join(self.language_options)
+            s = s + "\n"
+
         if self.project_options is not None:
             s = s + '\n'.join(self.project_options)
         return s

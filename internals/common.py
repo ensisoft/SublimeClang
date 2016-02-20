@@ -335,14 +335,14 @@ def get_path_setting(key, default=None, view=None):
 def get_project_settings(cpp_source_file):
     project_settings_file = find_project_file(cpp_source_file)
     if project_settings_file == None:
-        return None
+        return (None, None)
     project_settings = read_project_settings(project_settings_file)
     if project_settings == None:
-        return None
+        return (None, None)
     outs = []
     for setting in project_settings:
         outs.append(expand_setting_variable(setting))
-    return outs
+    return (project_settings_file, outs)
 
 
 def get_cpu_count():

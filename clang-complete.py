@@ -63,10 +63,11 @@ def get_language(view):
     if language == None:
         return Language(Language.Other)
     lang = language.group(0).lower()
-    if lang in "c++":
-        return Language(Language.CPP)
-    elif lang in "c":
+    #print("LANG IS : " + lang)
+    if lang in "c":
         return Language(Language.C)
+    elif lang in "c++":
+        return Language(Language.CPP)
     elif lang in "objc":
         return Language(Language.ObjC)
     elif lang in "objc++":
@@ -103,7 +104,10 @@ def collect_all_options(view, filename, language):
     if language_options.has_key(language.key()):
         opt.language_options = language_options[language.key()]
 
-    opt.project_options  = get_project_settings(filename)
+    project_file, project_options = get_project_settings(filename)
+    if project_file != None:
+        opt.project_file = project_file
+        opt.project_options  = project_options
     return opt
 
 # initialize cache if not done yet.
@@ -142,6 +146,8 @@ def get_translation_unit(view, filename, language, blocking=False):
     debug = get_setting("debug", False)
     if debug == True:
         print("Compiling: '%s'" % (filename))
+        print("Language: '%s'" % (language))
+        print("Project File: '%s'" % (opts.project_file))
         print("Options:")
         print(opts)
 
