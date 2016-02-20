@@ -199,7 +199,7 @@ class TranslationUnit(object):
     def __complete_namespace(self, namespace):
         ret = None
         if len(namespace):
-            nsarg = self.get_native_namespace(namespace)
+            nsarg = self.__get_native_namespace(namespace)
             comp = cache_completeNamespace(self.cache, nsarg, len(nsarg))
             if comp:
                 ret = [(x.display, x.insert) for x in comp[0]]
@@ -233,9 +233,13 @@ class TranslationUnit(object):
                 else:
                     ns = extra
             if ns:
-                nsarg = self.get_native_namespace(ns.split("::"))
+                nsarg = self.__get_native_namespace(ns.split("::"))
                 nslen = len(nsarg)
             cursor = cache_findType(self.cache, nsarg, nslen, bencode(typename))
+            if cursor != None:
+                assert self.tu != None
+                cursor._tu = self.tu
+
             if cursor != None and not cursor.kind.is_invalid():
                 if cursor.kind.is_reference():
                     cursor = cursor.referenced
@@ -245,7 +249,7 @@ class TranslationUnit(object):
             return cursor
 
         # Maybe it's a subtype?
-        parent = self.find_type(data, extra)
+        parent = self.__find_type(data, extra)
         if parent != None and not parent.kind.is_invalid():
             for child in parent.get_children():
                 if child.kind.is_declaration() and child.spelling == typename:
@@ -349,6 +353,7 @@ class TranslationUnit(object):
                 if cached_results:
                     ret = []
                     for x in cached_results[0]:
+                        x.cursor._tu = self.tu
                         if x.cursor.kind != cindex.CursorKind.MACRO_DEFINITION and \
                                 x.cursor.kind != cindex.CursorKind.CXX_METHOD:
                             ret.append((x.display, x.insert))
@@ -391,6 +396,8 @@ class TranslationUnit(object):
                         selfcompletion = clazz == c.spelling
 
                         for c in comp[0]:
+                            assert self.tu != None
+                            c.cursor._tu = self.tu
                             if (selfcompletion and not c.baseclass) or \
                                     (inherits and not c.access == cindex.CXXAccessSpecifier.PRIVATE) or \
                                     (c.access == cindex.CXXAccessSpecifier.PUBLIC and \
@@ -402,7 +409,7 @@ class TranslationUnit(object):
                                         c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL or \
                                         c.cursor.kind == cindex.CursorKind.ENUM_DECL)):
                                 ret.append((c.display, c.insert))
-            ret = self.filter(ret, constr)
+            ret = self.__filter(ret, constr)
             return ret
         elif re.search(r"(\w+\]+\s+$|\[[\w\.\-\>]+\s+$|([^ \t]+)(\.|\->)$)", before):
             comp = data
@@ -424,7 +431,7 @@ class TranslationUnit(object):
                 if line > 0 and column > 0:
                     cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
                 if cursor == None or cursor.kind.is_invalid() or cursor.spelling != var:
-                    cursor = self.find_type(data, template[0])
+                    cursor = self.__find_type(data, template[0])
                 else:
                     pointer = 0  # get the pointer level from the cursor instead
                 if cursor != None and not cursor.kind.is_invalid() and \
@@ -486,6 +493,7 @@ class TranslationUnit(object):
                     cached_results = cache_complete_startswith(self.cache, bencode(typename))
                     if cached_results:
                         for x in cached_results[0]:
+                            x.cursor._tu = self.tu
                             if x.cursor.spelling == typename:
                                 if x.cursor.kind == cindex.CursorKind.VAR_DECL or \
                                         x.cursor.kind == cindex.CursorKind.FUNCTION_DECL:
@@ -601,6 +609,8 @@ class TranslationUnit(object):
                             isStatic = var == None
                             if m2 == ".":
                                 for c in comp[0]:
+                                    assert self.tu != None
+                                    c.cursor._tu = self.tu
                                     add = True
                                     if c.cursor.kind == cindex.CursorKind.OBJC_IVAR_DECL:
                                         continue
@@ -659,6 +669,7 @@ class TranslationUnit(object):
                     comp = cache_completeCursor(self.cache, c)
                     if comp:
                         for c in comp[0]:
+                            c.cursor._tu = self.tu
                             if not c.static and \
                                     not (c.baseclass and c.access == cindex.CXXAccessSpecifier.PRIVATE):
                                 add = (c.display, c.insert)
@@ -672,7 +683,7 @@ class TranslationUnit(object):
                 add = self.__complete_namespace(ns)
                 if add:
                     ret.extend(add)
-            ret = self.filter(ret, constr)
+            ret = self.__filter(ret, constr)
         return remove_duplicates(ret)
 
     def complete(self, data, prefix):

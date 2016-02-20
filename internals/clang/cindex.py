@@ -1523,17 +1523,21 @@ class Cursor(Structure):
     def get_children(self):
         """Return an iterator for accessing the children of this cursor."""
 
+        assert self._tu is not None
+
         # FIXME: Expose iteration from CIndex, PR6125.
         def visitor(child, parent, children):
             # FIXME: Document this assertion in API.
             # FIXME: There should just be an isNull method.
             assert child != conf.lib.clang_getNullCursor()
 
+            # todo: this assert is hit... wut
             assert self._tu is not None
             # Create reference to TU so it isn't GC'd before Cursor.
             child._tu = self._tu
             children.append(child)
             return 1 # continue
+
         children = []
         conf.lib.clang_visitChildren(self, callbacks['cursor_visit'](visitor),
             children)
@@ -1833,25 +1837,21 @@ class Cursor(Structure):
         if res == conf.lib.clang_getNullCursor():
             return None
 
-        # TODO: Fix this !
-        # see the comments in from_result at line 2118
-
-
         # Store a reference to the TU in the Python object so it won't get GC'd
         # before the Cursor.
-        # tu = None
-        # for arg in args:
-        #     if isinstance(arg, TranslationUnit):
-        #         tu = arg
-        #         break
+        tu = None
+        for arg in args:
+            if isinstance(arg, TranslationUnit):
+                tu = arg
+                break
 
-        #     if hasattr(arg, 'translation_unit'):
-        #         tu = arg.translation_unit
-        #         break
+            if hasattr(arg, 'translation_unit'):
+                tu = arg.translation_unit
+                break
 
-        # assert tu is not None
+        assert tu is not None
 
-        #res._tu = tu
+        res._tu = tu
         return res
 
     @staticmethod
@@ -2115,21 +2115,14 @@ class Type(Structure):
     def from_result(res, fn, args):
         assert isinstance(res, Type)
 
-        # TODO: Fix this !
-        # The assertion below fails and it appears like this function
-        # is called from libclang.so.
-        # The older version of this method did not have the assert.
-        # I think the bug is in some native code. Not sure what are
-        # the implications of violating this precondition.
+        tu = None
+        for arg in args:
+            if hasattr(arg, 'translation_unit'):
+                tu = arg.translation_unit
+                break
 
-        # tu = None
-        # for arg in args:
-        #     if hasattr(arg, 'translation_unit'):
-        #         tu = arg.translation_unit
-        #         break
-
-        # assert tu is not None
-        # res._tu = tu
+        assert tu is not None
+        res._tu = tu
 
         return res
 
