@@ -1,13 +1,13 @@
 [
   {
-    "command": "clang_goto_def",
+    "command": "clang_goto_definition",
     "context": [{"key": "clang_supported_language"}],
     "keys": ["alt+d", "alt+d"]
   },
   {
-    "command": "clang_goto_implementation",
+    "command": "clang_goto_declaration",
     "context": [{"key": "clang_supported_language"}],
-    "keys": ["alt+d", "alt+i"]
+    "keys": ["alt+d", "alt+c"]
   },
   {
     "command": "clang_go_back",
@@ -20,16 +20,6 @@
     "keys": ["alt+d", "alt+c"]
   },
   {
-    "command": "clang_warmup_cache",
-    "context": [{"key": "clang_supported_language"}],
-    "keys": ["alt+d", "alt+w"]
-  },
-  {
-    "command": "clang_reparse",
-    "context": [{"key": "clang_supported_language"}],
-    "keys": ["alt+d", "alt+r"]
-  },
-  {
     "command": "clang_toggle_complete_enabled",
     "context": [{"key": "clang_supported_language"}],
     "keys": ["alt+d", "alt+t"]
@@ -37,16 +27,6 @@
   {
     "command": "clang_toggle_panel",
     "keys": ["alt+d", "alt+p"]
-  },
-    {
-    "command": "clang_previous",
-    "context": [{"key": "clang_supported_language"}],
-    "keys": ["alt+shift+d", "alt+shift+e"]
-  },
-  {
-    "command": "clang_next",
-    "context": [{"key": "clang_supported_language"}],
-    "keys": ["alt+d", "alt+e"]
   },
   {
     "command": "clang_analyze_file",
@@ -56,10 +36,6 @@
   {
     "command": "clang_analyze_project",
     "keys": ["alt+d","alt+o"]
-  },
-  {
-    "command": "clang_toggle_fast_completions",
-    "keys": ["alt+d","alt+f"]
   },
   {
     "command": "clang_complete",

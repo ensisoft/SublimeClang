@@ -4,40 +4,16 @@
     // the plugin completely for a specific project.
     "enabled": true,
 
-    // Whether or not to automatically trigger the auto complete
-    // window when typing object., object-> or similar.
-    "automatic_completion_popup": true,
+    // When set to true will output the final options used to the python console
+    "debug": false,
 
-
-    // Whether or not to hide the clang output panel when it's empty
-    "hide_output_when_empty": false,
-
-    // Whether or not to automatically show the output panel.
-    // If set to false, the default key-binding alt+d,alt+p
-    // will show it
-    "show_output_panel": true,
-
-    // When set to true, the output panel will be updated with the active
-    // view's errors/warnings as it is switched to. If set to false you will
-    // have to switch to the view you want to get the errors/warnings for
-    // and press alt+d,alt+f to hide and then display the panel for it
-    // to refresh its contents
-    "update_output_panel": true,
-
-
-    // Whether or not to show the clang parser status in the status bar
-    "show_status": true,
-
-
-    // When set to true, error marks will only be displayed when the error
-    // panel is showing
-    "error_marks_on_panel_only": false,
 
 
     // If set to false, the main thread will lock while parsing
     // the file, but commands will work the first time they are
     // executed rather than the first time after warm up has
     // finished
+    // todo: see the issue in the clang-complete.py in display_compilation_results
     "warm_up_in_separate_thread": true,
 
     // If set to true will warm up the cache for supported files
@@ -59,46 +35,28 @@
     "reparse_on_save": true,
 
     // set true to compile the file on the fly whenever it's modified
+    // TODO: this isn't properly implemented yet
     "reparse_on_edit": false,
 
     // Whether to use the saved file or the (possibly) dirty buffer contents when reparsing
+    // TODO: figure this out, this is connected to reparse_on_edit
     "reparse_use_dirty_buffer": false,
 
-    // When set to true will display parse status messages
-    "parse_status_messages": true,
-
     // When set to true will display analyzer status messages
+    // TODO: get rid of this crap
     "analyzer_status_messages": true,
 
-    // Scope used for markers in the clang output panel
-    "marker_output_panel_scope": "invalid",
-
-    // Scope used for warning markers
-    "marker_warning_scope": "comment",
-
-    // Scope used for error markers
-    "marker_error_scope": "invalid",
-
-    // Whether or not to print out timing information for the complete operation
-    "time_completions": false,
 
     // Whether or not to inhibit the Sublime Text 2 built in word completions
+    // TODO: figure this out
     "inhibit_sublime_completions": true,
 
-    // Don't show stuff in the autocomplete list when the name starts with the following
-    "dont_complete_startswith":
-    [
-        "~",
-        "operator"
-    ],
-
-   
 
     // Language specific options for clang.
-    "additional_language_options":
+    "language_options":
     {
         // For example, you can use "c++": ["-std=c++11"] to enable C++11 features.
-        "c++" : ["-Wall"],
+        "c++" : ["-Wall", "-std=c++11"],
         "c"   : ["-Wall"]
     },
 
@@ -106,20 +64,21 @@
     // TODO: solve this and make this automatic somehow
     "system_include_paths":
     [
-        "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0",
-        "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/x86_64-unknown-linux-gnu",
-        "-isystem", "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/backward",
-        "-isystem", "/usr/local/include",
-        "-isystem", "/usr/bin/../lib/clang/3.7.1/include"
+        "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0",
+        "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/x86_64-unknown-linux-gnu",
+        "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/backward",
+        "/usr/local/include",
+        "/usr/bin/../lib/clang/3.7.1/include"
     ],
 
-    // When set to true will output the final options used to the python console
-    "debug_options": true,
+
 
     // Scope used for markers in the clang output panel
+    // TODO: get rid of this crap
     "marker_analyzer_output_panel_scope": "invalid",
 
     // Scope used for markers by the analyzer in the file views
+    // TODO: get rid of this crap
     "marker_analyzer_scope": "invalid",
 
     // Command line used to invoke the static analyzer.
@@ -144,10 +103,16 @@
     ],
 
     // All diagnostic errors from files in these directories or below will be ignored
-    "diagnostic_ignore_dirs":
+    "diagnostic_suppress_dirs":
     [
     ],
 
-    // Diagnostic errors/warnings matching this regex pattern will be ignored
-    "diagnostic_ignore_regex": "pragma once in main file"
+    // Diagnostic errors/warnings matching these string matches will be ignored
+    "diagnostic_suppress_match":
+    [
+        "pragma once in main file",
+        "'std=c++11' not allowed with 'C/ObjC'"
+    ]
+
+
 }

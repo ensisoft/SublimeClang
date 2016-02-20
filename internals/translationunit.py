@@ -4,6 +4,9 @@ from clang import cindex
 from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
 from common import *
 from parsehelp import *
+from extensivesearch import *
+import re
+
 
 def get_cache_library():
     import platform
@@ -180,15 +183,28 @@ class Diagnostic(object):
 
 # represents the result of a SourceFile compilation
 class TranslationUnit(object):
-    def __init__(self, tu, filename): ## WTF is fn???
+    def __init__(self, tu, filename, opts):
         self.lock = threading.Lock()
         self.tu = tu
         self.cache = _createCache(tu.cursor)[0]
         self.filename = filename
+        self.opts     = opts # compile options
 
     def __del__(self):
         self.tu = None
         self.cache = None
+
+    def __format_cursor(self, cursor):
+        assert cursor != None
+        return "%s:%d:%d" % (cursor.location.file.name, cursor.location.line,
+           cursor.location.column)
+
+    def __get_cursor_spelling(self, cursor):
+        cursor_spelling = None
+        assert cursor != None
+        cursor_spelling = cursor.spelling or cursor.displayname
+        cursor_spelling = re.sub(r"^(enum\s+|(class|struct)\s+(\w+::)*)", "", cursor_spelling)
+        return cursor_spelling
 
     def __get_native_namespace(self, namespace):
         nsarg = (c_char_p*len(namespace))()
@@ -726,8 +742,8 @@ class TranslationUnit(object):
 
     def __get_impdef_prep(self, data, offset):
         row, col = parsehelp.get_line_and_column_from_offset(data, offset)
-        cursor = cindex.Cursor.get(self.var, self.filename, row, col)
-        cursor_spelling = get_cursor_spelling(cursor)
+        cursor = cindex.Cursor.get(self.tu, self.filename, row, col)
+        cursor_spelling = self.__get_cursor_spelling(cursor)
         word_under_cursor = parsehelp.extract_word_at_offset(data, offset)
         if word_under_cursor == "" and cursor != None:
             # Allow a parenthesis, brackets and some other non-name characters right after the name
@@ -737,11 +753,11 @@ class TranslationUnit(object):
         return cursor, cursor_spelling, word_under_cursor
 
 
-    def find_implementation(self, data, offset, found_callback, folders):
+    def find_definition(self, data, offset, found_callback, folders):
         target = None
         try:
             self.lock.acquire()
-            self.var.reparse([(self.filename, data)])
+            self.tu.reparse([(self.filename, data)])
             cursor, cursor_spelling, word_under_cursor = self.__get_impdef_prep(data, offset)
             if len(word_under_cursor) == 0:
                 found_callback(None)
@@ -749,12 +765,11 @@ class TranslationUnit(object):
             if cursor == None or cursor.kind.is_invalid() or cursor_spelling != word_under_cursor:
                 if cursor == None or cursor.kind.is_invalid():
                     cursor = None
-                assert False # TODO HERE
-                # ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts)
+                ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts)
                 return
             d = cursor.get_definition()
             if d != None and cursor != d:
-                target = format_cursor(d)
+                target = self.__format_cursor(d)
             elif d != None and cursor == d and \
                     (cursor.kind == cindex.CursorKind.VAR_DECL or \
                     cursor.kind == cindex.CursorKind.PARM_DECL or \
@@ -763,14 +778,14 @@ class TranslationUnit(object):
                     if child.kind == cindex.CursorKind.TYPE_REF:
                         d = child.get_definition()
                         if d != None:
-                            target = format_cursor(d)
+                            target = self.__format_cursor(d)
                         break
             elif cursor.kind == cindex.CursorKind.CLASS_DECL:
                 for child in cursor.get_children():
                     if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
                         d = child.get_definition()
                         if d != None:
-                            target = format_cursor(d)
+                            target = self.__format_cursor(d)
             elif d == None:
                 if cursor.kind == cindex.CursorKind.DECL_REF_EXPR or \
                         cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR or \
@@ -799,25 +814,24 @@ class TranslationUnit(object):
                                     if cursor2 != None:
                                         d = cursor2.get_definition()
                                         if d != None and cursor2 != d:
-                                            target = format_cursor(d)
+                                            target = self.__format_cursor(d)
                                             break
                                 finally:
                                     tu2.unlock()
                     if not target:
-                        assert False # TODO HERE!!
-                        #ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts)
+                        ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts)
                         return
             else:
-                target = format_cursor(d)
+                target = self.__format_cursor(d)
         finally:
             self.lock.release()
         found_callback(target)
 
-    def find_definition(self, data, offset, found_callback, folders):
+    def find_declaration(self, data, offset, found_callback, folders):
         target = None
         try:
             self.lock.acquire()
-            self.var.reparse([(self.filename, data)])
+            self.tu.reparse([(self.filename, data)])
             cursor, cursor_spelling, word_under_cursor = self.__get_impdef_prep(data, offset)
             if len(word_under_cursor) == 0:
                 found_callback(None)
@@ -826,7 +840,7 @@ class TranslationUnit(object):
             target = None
 
             if ref != None:
-                target = format_cursor(ref)
+                target = self.__format_cursor(ref)
             elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
                 f = cursor.get_included_file()
                 if not f is None:

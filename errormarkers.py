@@ -71,7 +71,7 @@ class ClangErrorPanel(object):
 
     def set_data(self, data):
         self.data = sdecode(data)
-        if get_setting("update_output_panel", True) and self.is_visible():
+        if self.is_visible():
             self.flush()
 
     def get_view(self):
@@ -113,7 +113,7 @@ class ClangErrorPanel(object):
         row, col = view.rowcol(view.sel()[0].a)
         str = "%s:%d" % (view.file_name(), (row + 1))
         r = self.view.find(str.replace('\\','\\\\'), 0)
-        panel_marker = get_setting("marker_output_panel_scope", "invalid")
+        panel_marker = "invalid"
         if r == None:
             self.view.erase_regions('highlightText')
         else:
@@ -146,9 +146,8 @@ def show_error_marks(view):
     gutter_mark = 'dot'
     outlines = {'warning': [], 'illegal': []}
     fn = sencode(view.file_name())
-    markers = {'warning':  get_setting("marker_warning_scope", "comment"),
-                'illegal': get_setting("marker_error_scope", "invalid")
-                }
+    markers = {'warning': "comment",
+                'illegal': "invalid"}
 
     for line in ERRORS[fn].keys():
         outlines['illegal'].append(view.full_line(view.text_point(line, 0)))

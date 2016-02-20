@@ -1230,10 +1230,8 @@ class Cursor(Structure):
 
     # forward ported from Quarnsters version
     def get_included_file(self):
-        file = conf.lib.clang_getIncludedFile(self)
-        if file == None:
-            return None
-        return file
+        return File.included_file_from_cursor(self)
+
 
     def is_static_method(self):
         """Returns True if the cursor refers to a C++ member function or member
@@ -2933,6 +2931,11 @@ class File(ClangObject):
     translation unit.
     """
 
+    # ensisoft
+    @staticmethod
+    def included_file_from_cursor(cursor):
+        return File(conf.lib.clang_getIncludedFile(cursor))
+
     @staticmethod
     def from_name(translation_unit, file_name):
         """Retrieve a file handle within the given translation unit."""
@@ -3492,10 +3495,14 @@ functionList = [
    Type,
    Type.from_result),
 
+  # ("clang_getIncludedFile",
+  #  [Cursor],
+  #  File,
+  #  File.from_cursor_result),
+
   ("clang_getIncludedFile",
-   [Cursor],
-   File,
-   File.from_cursor_result),
+    [Cursor],
+    c_object_p),
 
   ("clang_getInclusions",
    [TranslationUnit, callbacks['translation_unit_includes'], py_object]),
