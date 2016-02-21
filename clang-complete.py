@@ -93,6 +93,7 @@ def collect_all_options(view, filename, language):
     assert filename is not None
     assert language is not None
     assert language.is_supported()
+    assert cindex.conf is not None
 
     global SystemIncludes
 
@@ -103,6 +104,7 @@ def collect_all_options(view, filename, language):
         package  = os.path.join(packages, "SublimeClang")
         source = ""
         compiler = ""
+        cindex.conf.arch = sublime.arch()
         if language.kind == Language.C:
             source = "test.c"
             compiler = cindex.conf.locate_clang()
@@ -149,7 +151,7 @@ def get_cache():
     import platform
     import os
     if cindex.conf == None:
-        cindex.conf = cindex.Conf()
+        cindex.conf = cindex.Config()
         cindex.arch = sublime.arch()
         cindex.register_enumerations()
 

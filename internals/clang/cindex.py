@@ -3909,7 +3909,7 @@ class Config:
             elif self.arch == 'x64':
                 filename = "C:\\Program Files\\LLVM\\bin\\libclang.dll"
             else:
-                raise LibclangError("Unsupported architecture: " + sys.platform)
+                raise LibclangError("Unsupported architecture: " + self.arch)
         elif platform == 'Linux':
             if os.path.exists("/usr/lib/libclang.so"): # uh, todo: check version!
                 filename = '/usr/lib/libclang.so'
@@ -3927,16 +3927,17 @@ class Config:
         import platform
         import os.path
         import sys
+        assert self.arch is not None
 
         platform = platform.system()
         filename = ""
         if platform == "Windows":
-            if sys.platform == "win32":
+            if self.arch == "x32":
                 filename = "C:\\Program Files (x86)\\LLVM\\bin\\clang++.exe"
-            elif sys.platform == "win64":
+            elif self.arch == "x64":
                 filename = "C:\\Program Files\\LLVM\\bin\\clang++.exe"
             else:
-                raise LibclangError("Unsupported architecture: " + sys.platform)
+                raise LibclangError("Unsupported architecture: " + self.arch)
         elif platform == "Linux":
             if os.path.exists("/usr/bin/clang++"): # uh, todo: check version
                 filename = "/usr/bin/clang++"
@@ -3977,7 +3978,7 @@ def register_enumerations():
         TokenKind.register(value, name)
 
 
-
+conf = None
 #conf = Config()
 #register_enumerations()
 

@@ -30,9 +30,9 @@ freely, subject to the following restrictions:
 #include <assert.h>
 #include <memory>
 
-#pragma comment(lib, "libclang.lib")
 
 #if _WIN32
+#pragma comment(lib, "libclang.lib")
     #if _MSC_VER
        #define snprintf _snprintf_s
     #endif
