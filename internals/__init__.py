@@ -1,2 +1,2 @@
-__all__ = ['parsehelp', 'common', 'translationunitcache', 'clang']
+__all__ = ['parsehelp', 'common', 'translationunitcache', 'clang', 'translationunit']
 

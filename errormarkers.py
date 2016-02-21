@@ -1,24 +1,19 @@
 import sublime
 import sublime_plugin
 from collections import defaultdict
-try:
-    from .internals.common import get_setting, sdecode, sencode
-except:
-    from internals.common import get_setting, sdecode, sencode
-
+from internals import common
 
 ERRORS = {}
 WARNINGS = {}
 
 ERROR = "error"
 WARNING = "warning"
-clang_view = None
 
 
 class ClangNext(sublime_plugin.TextCommand):
     def run(self, edit):
         v = self.view
-        fn = sencode(v.file_name())
+        fn = common.sencode(v.file_name())
         line, column = v.rowcol(v.sel()[0].a)
         gotoline = -1
         if fn in ERRORS:
@@ -41,7 +36,7 @@ class ClangNext(sublime_plugin.TextCommand):
 class ClangPrevious(sublime_plugin.TextCommand):
     def run(self, edit):
         v = self.view
-        fn = sencode(v.file_name())
+        fn = common.sencode(v.file_name())
         line, column = v.rowcol(v.sel()[0].a)
         gotoline = -1
         if fn in ERRORS:
@@ -70,7 +65,7 @@ class ClangErrorPanel(object):
         self.data = ""
 
     def set_data(self, data):
-        self.data = sdecode(data)
+        self.data = common.sdecode(data)
         if self.is_visible():
             self.flush()
 
@@ -145,7 +140,7 @@ def show_error_marks(view):
     fill_outlines = False
     gutter_mark = 'dot'
     outlines = {'warning': [], 'illegal': []}
-    fn = sencode(view.file_name())
+    fn = common.sencode(view.file_name())
     markers = {'warning': "comment",
                 'illegal': "invalid"}
 
@@ -180,7 +175,7 @@ def last_selected_lineno(view):
 def update_statusbar(view):
     fn = view.file_name()
     if fn is not None:
-        fn = sencode(fn)
+        fn = common.sencode(fn)
     lineno = last_selected_lineno(view)
 
     if fn in ERRORS and lineno in ERRORS[fn]:
@@ -220,10 +215,10 @@ class SublimeClangStatusbarUpdater(sublime_plugin.EventListener):
         fn = view.file_name()
         if fn is None:
             return False
-        return sencode(fn) in ERRORS or fn in WARNINGS
+        return common.sencode(fn) in ERRORS or fn in WARNINGS
 
     def show_errors(self, view):
-        if self.has_errors(view) and not get_setting("error_marks_on_panel_only", False, view):
+        if self.has_errors(view):
             show_error_marks(view)
 
     def on_activated(self, view):

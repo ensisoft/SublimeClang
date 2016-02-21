@@ -28,40 +28,37 @@ Copyright (c) 2016 Sami Väisänen, Ensisoft
 http://www.ensisoft.com
 """
 
-
-
 import sublime
-import ctypes
+try:
+    import ctypes
+except:
+    sublime.error_message(\
+"""Unfortunately ctypes can't be imported, so SublimeClang will not work.
 
-import Queue as Queue
+There is a work around for this to get it to work, \
+please see http://www.github.com/ensisoft/SublimeClang for more details. """)
+
 from internals.clang import cindex
-from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
-   update_statusbar, erase_error_marks, clang_error_panel
-from internals.common import get_setting, get_settings, \
-    get_cpu_count, run_in_main_thread, \
-    status_message, sencode, are_we_there_yet, plugin_loaded, \
-    get_project_settings
-from internals import translationunitcache
+from internals import common
+from internals import translationunit as tulib
+from internals import translationunitcache as cache
 from internals.translationunitcache import Language as Language
 from internals.translationunitcache import CompileOptions as CompileOptions
 from internals.translationunitcache import TranslationUnitCache as TUCache
-
-from internals.parsehelp import parsehelp
-
-import sublime_plugin
 from sublime import Region
 import sublime
-import re
+import sublime_plugin
+import errormarkers
 import threading
-import time
-import traceback
 import os
-import json
+import re
 import sys
+import Queue as Queue
 
 # todo: what's with the sencode??
 def get_filename(view):
-    return sencode(view.file_name())
+    return common.sencode(view.file_name())
+
 
 # identify the language inside the file the view displays
 def get_language(view):
@@ -95,9 +92,9 @@ def collect_all_options(view, filename, language):
     assert language.is_supported()
 
     # todo: automate this.
-    sys_includes = get_setting("system_include_paths", [])
+    sys_includes = common.get_setting("system_include_paths", [])
 
-    opt = translationunitcache.CompileOptions(language, sys_includes)
+    opt = CompileOptions(language, sys_includes)
 
     # This is the bitmask sent to index.parse.
     # For example, to be able to go to the definition of
@@ -109,29 +106,63 @@ def collect_all_options(view, filename, language):
     # for more details
     opt.index_parse_type = 13
 
-    language_options = get_setting("language_options", {})
+    language_options = common.get_setting("language_options", {})
     if language_options.has_key(language.key()):
         opt.language_options = language_options[language.key()]
 
-    project_file, project_options = get_project_settings(filename)
+    project_file, project_options = common.get_project_settings(filename)
     if project_file != None:
         opt.project_file = project_file
         opt.project_options  = project_options
     return opt
 
 # initialize cache if not done yet.
-def get_cache():
-    if translationunitcache.tuCache == None:
-        number_threads = 4
-        translationunitcache.tuCache = translationunitcache.TranslationUnitCache(number_threads)
 
-    return translationunitcache.tuCache
+def get_cache():
+    import platform
+    system  = platform.system()
+    if tulib.cachelib == None:
+        libpath = ""
+        library = ""
+        try:
+            libname = tulib.get_cache_library()
+            libpath = ""
+            if system == 'Linux':
+                libpath = os.path.expanduser("~/.config/sublime-text-2/Packages/SublimeClang")
+
+            if libpath == "":
+                basepath = os.path.dirname(os.path.realpath(__file__))
+                libpath  = common.find_file_location(basepath, libname)
+
+            library = os.path.join(libpath, libname)
+            tulib.init_cache_lib(library)
+
+            print("Loaded: '%s'" % (libpath))
+        except OSError as err:
+            print(err)
+            if system == 'Linux':
+                error_message(
+"""It looks like '%s' couldn't be loaded. On Linux you have to compile it yourself.\n\n \
+Go to into your ~/.config/sublime-text-2/Packages/SublimeClang and run make.\n\n \
+Or visit https://github.com/ensisoft/SublimeClang for more information.""" % (library))
+            else:
+                error_message(
+"""It looks like '%s' couldn't be loaded.\n\n \
+Visit https://github.com/ensisoft/SublimeClang for more information.""" % (library))
+
+            raise err
+
+    if cache.tuCache == None:
+        number_threads = 4
+        cache.tuCache = TUCache(number_threads)
+
+    return cache.tuCache
 
 def warm_up_cache(view, filename, language):
     cache = get_cache()
     state = cache.get_status(filename)
 
-    if state == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE:
+    if state == TUCache.STATUS_NOT_IN_CACHE:
         opts = collect_all_options(view, filename, language)
         cache.prepare(filename, opts)
 
@@ -143,16 +174,16 @@ def warm_up_cache(view, filename, language):
 def get_translation_unit(view, filename, language, blocking=False):
     cache = get_cache()
 
-    if get_setting("warm_up_in_separate_thread", True) and not blocking:
+    if common.get_setting("warm_up_in_separate_thread", True) and not blocking:
         stat = warm_up_cache(view, filename, language)
-        if stat == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE:
+        if stat == TUCache.STATUS_NOT_IN_CACHE:
             return None
-        elif stat == translationunitcache.TranslationUnitCache.STATUS_PARSING:
+        elif stat == TUCache.STATUS_PARSING:
             sublime.status_message("Hold your horses, cache still warming up")
             return None
 
     opts = collect_all_options(view, filename, language)
-    debug = get_setting("debug", False)
+    debug = common.get_setting("debug", False)
     if debug == True:
         print("Compiling: '%s'" % (filename))
         print("Language: '%s'" % (language))
@@ -168,7 +199,8 @@ clang_complete_enabled = True
 
 def format_current_file(view):
     row, col = view.rowcol(view.sel()[0].a)
-    return "%s:%d:%d" % (sencode(view.file_name()), row + 1, col + 1)
+    filename = get_filename(view)
+    return "%s:%d:%d" % (filename, row + 1, col + 1)
 
 
 def navi_stack_open(view, target):
@@ -180,14 +212,14 @@ class ClangTogglePanel(sublime_plugin.WindowCommand):
     def run(self, **args):
         show = args["show"] if "show" in args else None
         aview = sublime.active_window().active_view()
-        error_marks = get_setting("error_marks_on_panel_only", False, aview)
+        error_marks = common.get_setting("error_marks_on_panel_only", False, aview)
 
         if show or (show == None and not clang_error_panel.is_visible(self.window)):
-            clang_error_panel.open(self.window)
+            errormarkers.clang_error_panel.open(self.window)
             if error_marks:
                 show_error_marks(aview)
         else:
-            clang_error_panel.close()
+            errormarkers.clang_error_panel.close()
             if error_marks:
                 erase_error_marks(aview)
 
@@ -206,26 +238,23 @@ class ClangWarmupCache(sublime_plugin.TextCommand):
         filename = get_filename(view)
 
         stat = warm_up_cache(view, filename, language)
-        if stat == translationunitcache.TranslationUnitCache.STATUS_PARSING:
+        if stat == TUCache.STATUS_PARSING:
             sublime.status_message("Cache is already warming up")
-        elif stat != translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE:
+        elif stat != TUCache.STATUS_NOT_IN_CACHE:
             sublime.status_message("Cache is already warmed up")
 
 
 class ClangGoBackEventListener(sublime_plugin.EventListener):
     def on_close(self, view):
-        if not get_setting("pop_on_close", True, view):
+        if not common.get_setting("pop_on_close", True, view):
             return
         # If the view we just closed was last in the navigation_stack,
         # consider it "popped" from the stack
-        fn = view.file_name()
-        if fn == None:
-            return
-        fn = sencode(fn)
+        filename = get_filename(view)
         while True:
             if len(navigation_stack) == 0 or \
                     not navigation_stack[
-                        len(navigation_stack) - 1][1].startswith(fn):
+                        len(navigation_stack) - 1][1].startswith(filename):
                 break
             navigation_stack.pop()
 
@@ -307,21 +336,21 @@ class ClangGotoDeclaration(ClangGotoBase):
 
 class ClangClearCache(sublime_plugin.TextCommand):
     def run(self, edit):
-        if translationunitcache.tuCache is None:
+        if cache.tuCache is None:
             return
-        translationunitcache.tuCache.clear()
+        cache.tuCache.clear()
         sublime.status_message("Cache cleared!")
 
 
 def suppress_based_on_location(source_file):
-    suppress_dirs = get_setting("diagnostic_suppress_dirs", [])
+    suppress_dirs = common.get_setting("diagnostic_suppress_dirs", [])
     for d in suppress_dirs:
         if source_file in d:
             return True
     return False
 
 def suppress_based_on_match(message):
-    suppress_strings = get_setting("diagnostic_suppress_match", [])
+    suppress_strings = common.get_setting("diagnostic_suppress_match", [])
     for suppress in suppress_strings:
         if suppress in message:
             return True
@@ -338,8 +367,8 @@ def display_compilation_results(view):
     tu = get_translation_unit(view, filename, language)
     assert tu is not None
 
-    clear_error_marks()  # clear visual error marks
-    erase_error_marks(view)
+    errormarkers.clear_error_marks()  # clear visual error marks
+    errormarkers.erase_error_marks(view)
 
     errString    = ""
     errorCount   = 0
@@ -379,7 +408,7 @@ def display_compilation_results(view):
         elif diagnostic.is_error():
             errorCount += 1
 
-        add_error_mark(name, source, line - 1, spelling)
+        errormarkers.add_error_mark(name, source, line - 1, spelling)
 
     if errorCount > 0 or warningCount > 0:
         statusString = "Clang Status: "
@@ -397,10 +426,9 @@ def display_compilation_results(view):
         show_panel = errString
         window.run_command("clang_toggle_panel", {"show": show_panel})
 
-    clang_error_panel.set_data(errString)
-    update_statusbar(view)
-
-    show_error_marks(view)
+    errormarkers.clang_error_panel.set_data(errString)
+    errormarkers.update_statusbar(view)
+    errormarkers.show_error_marks(view)
 
 
 def is_member_completion(view, caret):
@@ -441,39 +469,39 @@ class ClangComplete(sublime_plugin.TextCommand):
 
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
-        plugin_settings = get_settings()
+        plugin_settings = common.get_settings()
         plugin_settings.clear_on_change("options")
         plugin_settings.add_on_change("options", self.clear_cache)
         plugin_settings.add_on_change("options", self.load_settings)
 
         # wtf is this?
-        are_we_there_yet(lambda: self.load_settings())
+        common.are_we_there_yet(lambda: self.load_settings())
         self.compile_timer = None
         self.load_settings()
         self.not_code_regex = re.compile("(string.)|(comment.)")
 
     def clear_cache(self):
-        if translationunitcache.tuCache is None:
+        if cache.tuCache is None:
             return
-        translationunitcache.tuCache.clear()
+        cache.tuCache.clear()
 
     def load_settings(self):
-        self.recompile_delay = get_setting("recompile_delay", 0)
-        self.cache_on_load = get_setting("cache_on_load", True)
+        self.recompile_delay = common.get_setting("recompile_delay", 0)
+        self.cache_on_load = common.get_setting("cache_on_load", True)
         self.not_code_regex = re.compile("(string.)|(comment.)")
-        self.remove_on_close = get_setting("remove_on_close", True)
-        self.recompile_delay = get_setting("recompile_delay", 1000)
-        self.cache_on_load = get_setting("cache_on_load", True)
-        self.remove_on_close = get_setting("remove_on_close", True)
-        self.reparse_on_save  = get_setting("reparse_on_save", True)
-        self.reparse_on_focus = get_setting("reparse_on_focus", True)
-        self.reparse_on_edit = get_setting("reparse_on_edit", False)
+        self.remove_on_close = common.get_setting("remove_on_close", True)
+        self.recompile_delay = common.get_setting("recompile_delay", 1000)
+        self.cache_on_load = common.get_setting("cache_on_load", True)
+        self.remove_on_close = common.get_setting("remove_on_close", True)
+        self.reparse_on_save  = common.get_setting("reparse_on_save", True)
+        self.reparse_on_focus = common.get_setting("reparse_on_focus", True)
+        self.reparse_on_edit = common.get_setting("reparse_on_edit", False)
 
         self.dont_complete_startswith = ['operator', '~']
 
 
     def is_enabled(self, view):
-        if get_setting("enabled", view, True) == False:
+        if common.get_setting("enabled", True, view) == False:
             return False
         elif clang_complete_enabled == False:
             return False
@@ -491,7 +519,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 kind == cindex.CursorKind.NOT_IMPLEMENTED
 
     def return_completions(self, comp, view):
-        if get_setting("inhibit_sublime_completions", True, view):
+        if common.get_setting("inhibit_sublime_completions", True, view):
             return (comp, sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS)
         return comp
 
@@ -574,7 +602,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         view = self.view
         unsaved_files = []
         # todo: fix this
-        #if view.is_dirty() and get_setting("reparse_use_dirty_buffer", False, view):
+        #if view.is_dirty() and common.get_setting("reparse_use_dirty_buffer", False, view):
         #    unsaved_files.append((sencode(view.file_name()),
         #                          view.substr(Region(0, view.size()))))
 
@@ -654,7 +682,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             return
 
         filename = get_filename(view)
-        translationunitcache.tuCache.remove(filename)
+        cache.tuCache.remove(filename)
 
     def on_query_context(self, view, key, operator, operand, match_all):
         if key == "clang_supported_language":
@@ -669,4 +697,4 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         elif key == "clang_automatic_completion_popup":
             return True
         elif key == "clang_panel_visible":
-            return clang_error_panel.is_visible()
+            return errormarkers.clang_error_panel.is_visible()

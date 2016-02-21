@@ -28,9 +28,6 @@ Copyright (c) 2016 Sami Väisänen, Ensisoft
 http://www.ensisoft.com
 """
 
-
-
-
 from clang import cindex
 from common import *
 from translationunit import TranslationUnit

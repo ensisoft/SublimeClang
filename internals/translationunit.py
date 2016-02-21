@@ -32,38 +32,27 @@ from clang import cindex
 from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
 from common import *
 from parsehelp import *
-from extensivesearch import *
+# brain damaged circular imports...
+#from extensivesearch import ExtensiveSearch
 import re
-
 
 def get_cache_library():
     import platform
-    name = platform.system()
     filename = ''
-
-    if name == 'Darwin':
-        filename = 'libcache.dylib'
-    elif name == 'Windows':
-        filename = 'libcache_x64.dll' if cindex.isWin64 else 'libcache.dll'
-    else:
+    system = platform.system()
+    if system == 'Darwin':
+        filename = 'macOS\\libcache.dylib'
+    elif system == 'Windows':
+        if cindex.isWin64:
+            filename = 'win64\\libcache.dll'
+        else:
+            filename = 'win32\\libcache.dll'
+    elif system == 'Linux':
         filename = 'libcache.so'
 
-    filepath = look_for_file(filename, scriptpath, 3)
-    if filepath:
-        # Try loading with absolute path first
-        return cdll.LoadLibrary(filepath)
-    try:
-        # See if there's one in the system path
-        return cdll.LoadLibrary(filename)
-    except:
-        import traceback
-        traceback.print_exc()
-        error_message(
-            """It looks like %s couldn't be loaded. On Linux you have to compile it yourself.\n\n \
-            Go to into your ~/.config/sublime-text-2/Packages/SublimeClang and run make.\n\n \
-            Or visit https://github.com/ensisoft/SublimeClang for more information.""" % (filename))
+    assert filename
+    return filename
 
-scriptpath = os.path.dirname(os.path.abspath(__file__))
 
 class CacheEntry(Structure):
     _fields_ = [("cursor", cindex.Cursor), ("raw_insert", c_char_p), ("raw_display", c_char_p), ("access", c_uint), ("static", c_bool), ("baseclass", c_bool)]
@@ -95,37 +84,63 @@ class CacheCompletionResults(Structure):
     def __del__(self):
         completionResults_dispose(self)
 
-cachelib = get_cache_library()
+cachelib                   = None
+_createCache               = None
+_deleteCache               = None
+cache_completeNamespace    = None
+cache_complete_startswith  = None
+completionResults_length   = None
+completionResults_getEntry = None
+completionResults_dispose  = None
+cache_findType             = None
+cache_completeCursor       = None
+cache_clangComplete        = None
 
+def init_cache_lib(libname):
+    global cachelib
+    global _createCache
+    global _deleteCache
+    global cache_completeNamespace
+    global cache_complete_startswith
+    global completionResults_length
+    global completionResults_getEntry
+    global completionResults_dispose
+    global cache_findType
+    global cache_completeCursor
+    global cache_clangComplete
 
-_createCache = cachelib.createCache
-_createCache.restype = POINTER(_Cache)
-_createCache.argtypes = [cindex.Cursor]
-_deleteCache = cachelib.deleteCache
-_deleteCache.argtypes = [POINTER(_Cache)]
-cache_completeNamespace = cachelib.cache_completeNamespace
-cache_completeNamespace.argtypes = [POINTER(_Cache), POINTER(c_char_p), c_uint]
-cache_completeNamespace.restype = POINTER(CacheCompletionResults)
-cache_complete_startswith = cachelib.cache_complete_startswith
-cache_complete_startswith.argtypes = [POINTER(_Cache), c_char_p]
-cache_complete_startswith.restype = POINTER(CacheCompletionResults)
-completionResults_length = cachelib.completionResults_length
-completionResults_length.argtypes = [POINTER(CacheCompletionResults)]
-completionResults_length.restype = c_uint
-completionResults_getEntry = cachelib.completionResults_getEntry
-completionResults_getEntry.argtypes = [POINTER(CacheCompletionResults)]
-completionResults_getEntry.restype = POINTER(CacheEntry)
-completionResults_dispose = cachelib.completionResults_dispose
-completionResults_dispose.argtypes = [POINTER(CacheCompletionResults)]
-cache_findType = cachelib.cache_findType
-cache_findType.argtypes = [POINTER(_Cache), POINTER(c_char_p), c_uint, c_char_p]
-cache_findType.restype = cindex.Cursor
-cache_completeCursor = cachelib.cache_completeCursor
-cache_completeCursor.argtypes = [POINTER(_Cache), cindex.Cursor]
-cache_completeCursor.restype = POINTER(CacheCompletionResults)
-cache_clangComplete = cachelib.cache_clangComplete
-cache_clangComplete.argtypes = [POINTER(_Cache), c_char_p, c_uint, c_uint, POINTER(cindex._CXUnsavedFile), c_uint, c_bool]
-cache_clangComplete.restype = POINTER(CacheCompletionResults)
+    assert cachelib == None
+    assert libname != None
+
+    cachelib = cdll.LoadLibrary(libname)
+    _createCache = cachelib.createCache
+    _createCache.restype = POINTER(_Cache)
+    _createCache.argtypes = [cindex.Cursor]
+    _deleteCache = cachelib.deleteCache
+    _deleteCache.argtypes = [POINTER(_Cache)]
+    cache_completeNamespace = cachelib.cache_completeNamespace
+    cache_completeNamespace.argtypes = [POINTER(_Cache), POINTER(c_char_p), c_uint]
+    cache_completeNamespace.restype = POINTER(CacheCompletionResults)
+    cache_complete_startswith = cachelib.cache_complete_startswith
+    cache_complete_startswith.argtypes = [POINTER(_Cache), c_char_p]
+    cache_complete_startswith.restype = POINTER(CacheCompletionResults)
+    completionResults_length = cachelib.completionResults_length
+    completionResults_length.argtypes = [POINTER(CacheCompletionResults)]
+    completionResults_length.restype = c_uint
+    completionResults_getEntry = cachelib.completionResults_getEntry
+    completionResults_getEntry.argtypes = [POINTER(CacheCompletionResults)]
+    completionResults_getEntry.restype = POINTER(CacheEntry)
+    completionResults_dispose = cachelib.completionResults_dispose
+    completionResults_dispose.argtypes = [POINTER(CacheCompletionResults)]
+    cache_findType = cachelib.cache_findType
+    cache_findType.argtypes = [POINTER(_Cache), POINTER(c_char_p), c_uint, c_char_p]
+    cache_findType.restype = cindex.Cursor
+    cache_completeCursor = cachelib.cache_completeCursor
+    cache_completeCursor.argtypes = [POINTER(_Cache), cindex.Cursor]
+    cache_completeCursor.restype = POINTER(CacheCompletionResults)
+    cache_clangComplete = cachelib.cache_clangComplete
+    cache_clangComplete.argtypes = [POINTER(_Cache), c_char_p, c_uint, c_uint, POINTER(cindex._CXUnsavedFile), c_uint, c_bool]
+    cache_clangComplete.restype = POINTER(CacheCompletionResults)
 
 
 def remove_duplicates(data):
@@ -782,6 +797,7 @@ class TranslationUnit(object):
 
 
     def find_definition(self, data, offset, found_callback, folders):
+        import extensivesearch
         target = None
         try:
             self.lock.acquire()

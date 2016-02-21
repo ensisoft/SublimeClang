@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 Copyright (c) 2011-2012 Fredrik Ehnbom
 
@@ -21,6 +23,11 @@ freely, subject to the following restrictions:
    distribution.
 """
 
+"""
+Copyright (c) 2016 Sami Väisänen, Ensisoft
+http://www.ensisoft.com
+"""
+
 import os
 import subprocess
 import sublime
@@ -28,12 +35,8 @@ import sublime_plugin
 import time
 import threading
 import traceback
-try:
-    import Queue
-    from internals.common import get_setting, get_cpu_count, Worker
-except:
-    import queue as Queue
-    from .internals.common import get_setting, get_cpu_count, Worker
+import Queue
+from internals import common
 
 
 def parse(l):
@@ -201,7 +204,7 @@ class Diagnostic:
         return []
 
 
-class Analyzer(Worker):
+class Analyzer(common.Worker):
     def __init__(self):
         self.lock = threading.Lock()
         self.diags = []
