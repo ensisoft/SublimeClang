@@ -82,6 +82,9 @@ def get_language(view):
     return Language(Language.Other)
 
 
+SystemIncludes = None
+
+
 # collect all compilation options based on the view and the file
 # the user is currently working on.
 # creates a CompileOptions object.
@@ -91,10 +94,34 @@ def collect_all_options(view, filename, language):
     assert language is not None
     assert language.is_supported()
 
-    # todo: automate this.
-    sys_includes = common.get_setting("system_include_paths", [])
+    global SystemIncludes
 
-    opt = CompileOptions(language, sys_includes)
+    # use clang to figure out the magical -isystem paths
+    # todo: ObjC and ObjCPP ??
+    if SystemIncludes == None:
+        packages = sublime.packages_path()
+        package  = os.path.join(packages, "SublimeClang")
+        source = ""
+        compiler = ""
+        if language.kind == Language.C:
+            source = "test.c"
+            compiler = cindex.conf.locate_clang()
+        elif language.kind == Language.CPP:
+            source = "test.cpp"
+            compiler = cindex.conf.locate_clang_cpp()
+        else:
+            raise Error("Unsupported language.")
+
+        source = os.path.join(package, source)
+        info = common.ClangInfo.collect(compiler, source)
+        SystemIncludes = info.internal_isystem
+        print("Found system includes:")
+        print(SystemIncludes)
+    
+    # this is how we got it from the settings before...
+    #sys_includes = common.get_setting("system_include_paths", [])
+
+    opt = CompileOptions(language, SystemIncludes)
 
     # This is the bitmask sent to index.parse.
     # For example, to be able to go to the definition of
@@ -120,35 +147,30 @@ def collect_all_options(view, filename, language):
 
 def get_cache():
     import platform
-    system  = platform.system()
     if tulib.cachelib == None:
-        libpath = ""
-        library = ""
+
+        libcache = ""
+        packages = sublime.packages_path()
+        package  = os.path.join(packages, "SublimeClang")
         try:
-            libname = tulib.get_cache_library()
-            libpath = ""
-            if system == 'Linux':
-                libpath = os.path.expanduser("~/.config/sublime-text-2/Packages/SublimeClang")
+            libname  = tulib.get_cache_library()
+            libcache = os.path.join(package, libname)
 
-            if libpath == "":
-                basepath = os.path.dirname(os.path.realpath(__file__))
-                libpath  = common.find_file_location(basepath, libname)
+            tulib.init_cache_lib(libcache)
 
-            library = os.path.join(libpath, libname)
-            tulib.init_cache_lib(library)
+            print("Loaded: '%s'" % (libcache))
 
-            print("Loaded: '%s'" % (libpath))
         except OSError as err:
             print(err)
             if system == 'Linux':
                 error_message(
 """It looks like '%s' couldn't be loaded. On Linux you have to compile it yourself.\n\n \
 Go to into your ~/.config/sublime-text-2/Packages/SublimeClang and run make.\n\n \
-Or visit https://github.com/ensisoft/SublimeClang for more information.""" % (library))
+Or visit https://github.com/ensisoft/SublimeClang for more information.""" % (libcache))
             else:
                 error_message(
 """It looks like '%s' couldn't be loaded.\n\n \
-Visit https://github.com/ensisoft/SublimeClang for more information.""" % (library))
+Visit https://github.com/ensisoft/SublimeClang for more information.""" % (libcache))
 
             raise err
 

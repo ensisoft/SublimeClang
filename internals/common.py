@@ -308,3 +308,93 @@ def get_cpu_count():
     except:
         pass
     return cpus
+
+
+class ClangInfo(object):
+    def __init__(self, output):
+        self.output = output
+
+
+    @property
+    def internal_isystem(self):
+        ret = list()
+        tokens = re.split(r'" "', self.output)
+        for i, val in enumerate(tokens):
+            if val == "-internal-isystem":
+                ret.append(tokens[i+1])
+        return ret
+
+    @property
+    def rawoutput(self):
+        return self.output
+
+    @staticmethod
+    def collect(clang, source_file):
+        import subprocess
+        (stdout, stderr) = subprocess.Popen([clang, "-###", "-c", source_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
+        if stdout:
+            return ClangInfo(stdout)
+        elif stderr:
+            return ClangInfo(stderr)
+        return None
+
+def unit_test_clang_info():
+    string = \
+'clang version 3.7.1 (tags/RELEASE_371/final)\n' \
+'Target: x86_64-unknown-linux-gnu\n' \
+'Thread model: posix\n' \
+'"/usr/bin/clang-3.7" "-cc1" "-triple" "x86_64-unknown-linux-gnu" "-emit-obj" ' \
+'"-mrelax-all" "-disable-free" "-disable-llvm-verifier" "-main-file-name" ' \
+'"test.c" "-mrelocation-model" "static" "-mthread-model" "posix" "-mdisable-fp-elim" ' \
+'"-fmath-errno" "-masm-verbose" "-mconstructor-aliases" "-munwind-tables" ' \
+'"-fuse-init-array" "-target-cpu" "x86-64" "-dwarf-column-info" ' \
+'"-coverage-file" "/home/enska/coding/SublimeClang/test.c" ' \
+'"-resource-dir" "/usr/bin/../lib/clang/3.7.1" "-internal-isystem" "/usr/local/include" ' \
+'"-internal-isystem" "/usr/bin/../lib/clang/3.7.1/include" ' \
+'"-internal-externc-isystem" "/include" "-internal-externc-isystem" ' \
+'"/usr/include" "-fdebug-compilation-dir" "/home/enska/coding/SublimeClang" ' \
+'"-ferror-limit" "19" "-fmessage-length" "150" "-mstackrealign" ' \
+'"-fobjc-runtime=gcc" "-fdiagnostics-show-option" ' \
+'"-fcolor-diagnostics" "-o" "test.o" "-x" "c" "test.c" '
+
+
+    info = ClangInfo(string)
+    incs = info.internal_isystem
+
+    print(incs)
+    assert incs[0] == "/usr/local/include"
+    assert incs[1] == "/usr/bin/../lib/clang/3.7.1/include"
+
+
+    string = \
+'clang version 3.7.1 (tags/RELEASE_371/final)\n' \
+'Target: x86_64-unknown-linux-gnu\n' \
+'Thread model: posix\n' \
+'"/usr/bin/clang-3.7" "-cc1" "-triple" "x86_64-unknown-linux-gnu" ' \
+'"-emit-obj" "-mrelax-all" "-disable-free" "-disable-llvm-verifier" ' \
+'"-main-file-name" "test.cpp" "-mrelocation-model" "static" ' \
+'"-mthread-model" "posix" "-mdisable-fp-elim" "-fmath-errno" ' \
+'"-masm-verbose" "-mconstructor-aliases" "-munwind-tables" ' \
+'"-fuse-init-array" "-target-cpu" "x86-64" "-dwarf-column-info" ' \
+'"-coverage-file" "/home/enska/coding/SublimeClang/test.cpp" ' \
+'"-resource-dir" "/usr/bin/../lib/clang/3.7.1" "-internal-isystem" ' \
+'"/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0" ' \
+'"-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/x86_64-unknown-linux-gnu" ' \
+'"-internal-isystem" "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/backward" ' \
+'"-internal-isystem" "/usr/local/include" "-internal-isystem" ' \
+'"/usr/bin/../lib/clang/3.7.1/include" "-internal-externc-isystem" ' \
+'"/include" "-internal-externc-isystem" "/usr/include" ' \
+'"-fdeprecated-macro" "-fdebug-compilation-dir" ' \
+'"/home/enska/coding/SublimeClang" ' \
+'"-ferror-limit" "19" "-fmessage-length" "0" "-mstackrealign" ' \
+'"-fobjc-runtime=gcc" "-fcxx-exceptions" "-fexceptions" "-fdiagnostics-show-option" ' \
+'"-o" "test.o" "-x" "c++" "/home/enska/coding/SublimeClang/test.cpp" '
+
+
+    info = ClangInfo(string)
+    incs = info.internal_isystem
+    print(incs)
+    assert(incs[0] == "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0")
+    assert(incs[1] == "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/x86_64-unknown-linux-gnu")
+    assert(incs[2] == "/usr/bin/../lib64/gcc/x86_64-unknown-linux-gnu/5.3.0/../../../../include/c++/5.3.0/backward")
+    assert(incs[3] == "/usr/local/include")

@@ -83,6 +83,10 @@ class Language:
             return True
         return False
 
+    @property
+    def kind(self):
+        return self.value
+
 
 class CompileOptions(object):
     def __init__(self, lang, sys_includes):

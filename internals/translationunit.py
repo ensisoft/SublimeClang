@@ -40,17 +40,16 @@ def get_cache_library():
     import platform
     filename = ''
     system = platform.system()
-    if system == 'Darwin':
-        filename = 'macOS\\libcache.dylib'
-    elif system == 'Windows':
+    if system == 'Windows':
         if cindex.isWin64:
             filename = 'win64\\libcache.dll'
         else:
             filename = 'win32\\libcache.dll'
     elif system == 'Linux':
         filename = 'libcache.so'
-
-    assert filename
+    else:
+        raise Error("Unsupported Operating System")
+    
     return filename
 
 

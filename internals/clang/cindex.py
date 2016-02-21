@@ -3894,37 +3894,69 @@ class Config:
         Config.loaded = True
         return lib
 
-    def get_filename(self):
+    # locate libclang.so
+    def locate_libclang(self):
         import platform
         import os.path
+        import sys
         platform = platform.system()
         filename = ""
 
-        if platform == 'Darwin':
-            filename = 'libclang.dylib'
-        elif platform == 'Windows':
-            filename = 'libclang.dll'
+        if platform == 'Windows':
+            if sys.platform == 'win32':
+                filename = "C:\\Program Files (x86)\\LLVM\\bin\\libclang.dll"
+            elif sys.platform == 'win64':
+                filename = "C:\\Program Files\\LLVM\\bin\\libclang.dll"
+            else:
+                raise LibclangError("Unsupported architecture: " + sys.platform)
         elif platform == 'Linux':
-            if os.path.exists("/usr/lib/libclang.so"):
+            if os.path.exists("/usr/lib/libclang.so"): # uh, todo: check version!
                 filename = '/usr/lib/libclang.so'
-            elif os.path.exists("/usr/lib/llvm-3.7/lib/libclang.so"):
+            elif os.path.exists("/usr/lib/llvm-3.7/lib/libclang.so"): # ubuntu is explicit
                 filename = '/usr/lib/llvm-3.7/lib/libclang.so'
-            elif os.path.exists("/usr/lib/llvm-3.6/lib/libclang.so"):
-                filename = '/usr/lib/llvm-3.6/lib/libclang.so'
-            # try home
-            if filename == "":
-                userhome = os.path.expanduser("~")
-                filename = userhome + "/bin/clang-3.7.1/lib/libclang.so"
+            else: # try home, maybe do a search here?
+                filename = os.path.expanduser("~/bin/clang-3.7.1/lib/libclang.so")
         else:
-            raise libclangError("Unsupported Operating System.")
+            raise LibclangError("Unsupported Operating System.")
 
-        if filename == "":
-            raise LibclangError("Unable to locate libclang library.")
         return filename
+
+    # locate clang++
+    def locate_clang_cpp(self):
+        import platform
+        import os.path
+        import sys
+
+        platform = platform.system()
+        filename = ""
+        if platform == "Windows":
+            if sys.platform == "win32":
+                filename = "C:\\Program Files (x86)\\LLVM\\bin\\clang++.exe"
+            elif sys.platform == "win64":
+                filename = "C:\\Program Files\\LLVM\\bin\\clang++.exe"
+            else:
+                raise LibclangError("Unsupported architecture: " + sys.platform)
+        elif platform == "Linux":
+            if os.path.exists("/usr/bin/clang++"): # uh, todo: check version
+                filename = "/usr/bin/clang++"
+            elif os.path.exists("/usr/bin/llvm-3.7/clang++"):
+                filename = "/usr/bin/llvm-3.7/clang++"
+            else: # try home
+                filename = os.path.expanduser("~/bin/clang-3.7.1/bin/clang++")
+        else:
+            raise LibclangError("Unsupported Operating System")
+
+        return filename
+
+    # locate clang
+    def locate_clang(self):
+        clang = self.get_clang_cpp()
+        clang = clang.replace("++", "")
+        return clang
 
     def get_cindex_library(self):
         try:
-            library = cdll.LoadLibrary(self.get_filename())
+            library = cdll.LoadLibrary(self.locate_libclang())
         except OSError as e:
             msg = "Failed to load libclang. " + str(e)
             raise LibclangError(msg)
