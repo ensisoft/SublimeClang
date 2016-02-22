@@ -1821,7 +1821,7 @@ class Cursor(Structure):
         # Not found in this class, try base class
         for child in self.get_children():
             if child.kind == CursorKind.CXX_BASE_SPECIFIER:
-                ret = child.get_reference.get_member(membername, function)
+                ret = child.referenced.get_member(membername, function)
                 if ret:
                     return ret
         return None

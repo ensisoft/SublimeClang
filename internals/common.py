@@ -197,23 +197,6 @@ class Worker(object):
             finally:
                 self.tasks.task_done()
 
-
-
-
-# Read the project specific settings from the project file.
-def read_project_settings(project_file):
-    file = open(project_file, mode="r")
-    try:
-        data = json.load(file)
-    except ValueError:
-        return None
-    settings = data["settings"]
-    if settings != None:
-        return settings["sublimeclang_options"]
-
-    return None
-
-
 # Find the project file for project/user specific settings.
 # The search is performed based on the C++ source file location.
 # and ascends from that folder towards the root.
@@ -222,7 +205,7 @@ def find_project_file(source_file):
     p = re.compile("\\.sublime-project$")
     dir = os.path.dirname(source_file)
     while len(dir) != 0:
-        #print("Trying: " + dir)
+        print("Trying: " + dir)
         entities = os.listdir(dir)
         for e in entities:
             if e == ".":
@@ -237,11 +220,13 @@ def find_project_file(source_file):
             if m == None:
                 continue
             return os.path.normpath(dir + "/" + e)
-            if (dir == "/"):
-                break
+        if (dir == "/"):
+            return None
+
         # move up one folder
         (head, tail) = os.path.split(dir)
         dir = head
+    return None
 
 # Read the project specific settings from the project file.
 def read_project_settings(project_file):

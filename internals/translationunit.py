@@ -52,7 +52,7 @@ def get_cache_library(arch):
         filename = 'libcache.so'
     else:
         raise Error("Unsupported Operating System")
-    
+
     return filename
 
 
@@ -246,9 +246,9 @@ class TranslationUnit(object):
 
     def __get_cursor_spelling(self, cursor):
         cursor_spelling = None
-        assert cursor != None
-        cursor_spelling = cursor.spelling or cursor.displayname
-        cursor_spelling = re.sub(r"^(enum\s+|(class|struct)\s+(\w+::)*)", "", cursor_spelling)
+        if cursor != None:
+            cursor_spelling = cursor.spelling or cursor.displayname
+            cursor_spelling = re.sub(r"^(enum\s+|(class|struct)\s+(\w+::)*)", "", cursor_spelling)
         return cursor_spelling
 
     def __get_native_namespace(self, namespace):
