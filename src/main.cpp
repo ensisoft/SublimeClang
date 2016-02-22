@@ -30,6 +30,8 @@ freely, subject to the following restrictions:
 #include <assert.h>
 #include <memory>
 
+#pragma comment(lib, "libclang.lib")
+
 #if _WIN32
     #if _MSC_VER
        #define snprintf _snprintf_s
@@ -1525,3 +1527,23 @@ EXPORT const char* getVersion()
 
 }
 
+#ifdef _WIN32
+#include <Windows.h>
+
+BOOL APIENTRY DllMain(HMODULE hModule,
+    DWORD  ul_reason_for_call,
+    LPVOID lpReserved
+    )
+{
+    switch (ul_reason_for_call)
+    {
+    case DLL_PROCESS_ATTACH:
+    case DLL_THREAD_ATTACH:
+    case DLL_THREAD_DETACH:
+    case DLL_PROCESS_DETACH:
+        break;
+    }
+    return TRUE;
+}
+
+#endif

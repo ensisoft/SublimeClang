@@ -36,16 +36,19 @@ from parsehelp import *
 #from extensivesearch import ExtensiveSearch
 import re
 
-def get_cache_library():
+def get_cache_library(arch):
     import platform
+    import sys
     filename = ''
-    system = platform.system()
-    if system == 'Windows':
-        if cindex.isWin64:
+    platform = platform.system()
+    if platform == 'Windows':
+        if arch == 'x64':
             filename = 'win64\\libcache.dll'
-        else:
+        elif arch == 'x32':
             filename = 'win32\\libcache.dll'
-    elif system == 'Linux':
+        else:
+            raise Error("Unsupported architecture")
+    elif platform == 'Linux':
         filename = 'libcache.so'
     else:
         raise Error("Unsupported Operating System")

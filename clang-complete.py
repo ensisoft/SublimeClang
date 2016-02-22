@@ -147,13 +147,19 @@ def collect_all_options(view, filename, language):
 
 def get_cache():
     import platform
-    if tulib.cachelib == None:
+    import os
+    if cindex.conf == None:
+        cindex.conf = cindex.Conf()
+        cindex.arch = sublime.arch()
+        cindex.register_enumerations()
 
+    if tulib.cachelib == None:
         libcache = ""
         packages = sublime.packages_path()
         package  = os.path.join(packages, "SublimeClang")
+        arch     = sublime.arch()
         try:
-            libname  = tulib.get_cache_library()
+            libname  = tulib.get_cache_library(arch)
             libcache = os.path.join(package, libname)
 
             tulib.init_cache_lib(libcache)
@@ -162,13 +168,13 @@ def get_cache():
 
         except OSError as err:
             print(err)
-            if system == 'Linux':
-                error_message(
+            if os.system == 'Linux':
+                common.error_message(
 """It looks like '%s' couldn't be loaded. On Linux you have to compile it yourself.\n\n \
 Go to into your ~/.config/sublime-text-2/Packages/SublimeClang and run make.\n\n \
 Or visit https://github.com/ensisoft/SublimeClang for more information.""" % (libcache))
             else:
-                error_message(
+                common.error_message(
 """It looks like '%s' couldn't be loaded.\n\n \
 Visit https://github.com/ensisoft/SublimeClang for more information.""" % (libcache))
 

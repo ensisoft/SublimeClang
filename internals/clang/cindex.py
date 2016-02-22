@@ -3840,6 +3840,7 @@ def register_functions(lib, ignore_errors):
     map(register, functionList)
 
 class Config:
+    arch = None
     library_path = None
     library_file = None
     compatibility_check = True
@@ -3903,9 +3904,9 @@ class Config:
         filename = ""
 
         if platform == 'Windows':
-            if sys.platform == 'win32':
+            if self.arch == 'x32':
                 filename = "C:\\Program Files (x86)\\LLVM\\bin\\libclang.dll"
-            elif sys.platform == 'win64':
+            elif self.arch == 'x64':
                 filename = "C:\\Program Files\\LLVM\\bin\\libclang.dll"
             else:
                 raise LibclangError("Unsupported architecture: " + sys.platform)
@@ -3975,8 +3976,10 @@ def register_enumerations():
     for name, value in enumerations.TokenKinds:
         TokenKind.register(value, name)
 
-conf = Config()
-register_enumerations()
+
+
+#conf = Config()
+#register_enumerations()
 
 __all__ = [
     'Config',
