@@ -29,7 +29,7 @@
     "pop_on_close": true,
 
     // set to true to compile the file when the window is focused.
-    "reparse_on_focus": true,
+    "reparse_on_focus": false,
 
     // set true to compile the file when the file is saved.
     "reparse_on_save": true,

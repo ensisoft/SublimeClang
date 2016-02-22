@@ -151,9 +151,26 @@ def get_cache():
     import platform
     import os
     if cindex.conf == None:
-        cindex.conf = cindex.Config()
-        cindex.arch = sublime.arch()
-        cindex.register_enumerations()
+        try:
+            cindex.conf = cindex.Config()
+            cindex.arch = sublime.arch()
+            cindex.register_enumerations()
+            print(cindex.conf.library_file)
+        except OSError as err:
+            print(err)
+            library = cindex.conf.library_file
+            if os.system == 'Linux':
+                common.error_message(
+"""It looks like '%s' couldn't be loaded. On Linux use your package manager to install clang-3.7.1\n\n \
+or alternatively download a pre-built binary from http://www.llvm.org and put it in your ~/bin/\n\n \
+Visit https://github.com/ensisoft/SublimeClang for more information.""" % (library))
+            else: 
+                common.error_message(
+"""It looks like '%s' couldn't be loaded.\n\n \
+Download a pre-built binary from http://www.llvm.org and install it in your system.\n\n \
+Note that the architecture needs to match your SublimeText 2 architecture.\n\n \
+Visit https://github.com/ensisoft/SublimeClang for more information.""" % (library))
+            raise err
 
     if tulib.cachelib == None:
         libcache = ""
@@ -165,21 +182,18 @@ def get_cache():
             libcache = os.path.join(package, libname)
 
             tulib.init_cache_lib(libcache)
-
             print("Loaded: '%s'" % (libcache))
-
         except OSError as err:
             print(err)
             if os.system == 'Linux':
                 common.error_message(
 """It looks like '%s' couldn't be loaded. On Linux you have to compile it yourself.\n\n \
 Go to into your ~/.config/sublime-text-2/Packages/SublimeClang and run make.\n\n \
-Or visit https://github.com/ensisoft/SublimeClang for more information.""" % (libcache))
+Visit https://github.com/ensisoft/SublimeClang for more information.""" % (libcache))
             else:
                 common.error_message(
 """It looks like '%s' couldn't be loaded.\n\n \
 Visit https://github.com/ensisoft/SublimeClang for more information.""" % (libcache))
-
             raise err
 
     if cache.tuCache == None:
@@ -711,8 +725,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if lang.is_supported() == False:
             return
 
-        filename = get_filename(view)
-        cache.tuCache.remove(filename)
+        if cache.tuCache != None:
+            filename = get_filename(view)            
+            cache.tuCache.remove(filename)
 
     def on_query_context(self, view, key, operator, operand, match_all):
         if key == "clang_supported_language":
