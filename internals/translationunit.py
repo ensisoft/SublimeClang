@@ -799,11 +799,12 @@ class TranslationUnit(object):
 
 
     def find_definition(self, data, offset, found_callback, folders):
-        import extensivesearch
+        from extensivesearch import ExtensiveSearch
         target = None
         try:
             self.lock.acquire()
             self.tu.reparse([(self.filename, data)])
+            self.cache = _createCache(self.tu.cursor)[0]
             cursor, cursor_spelling, word_under_cursor = self.__get_impdef_prep(data, offset)
             if len(word_under_cursor) == 0:
                 found_callback(None)
@@ -878,6 +879,7 @@ class TranslationUnit(object):
         try:
             self.lock.acquire()
             self.tu.reparse([(self.filename, data)])
+            self.cache = _createCache(self.tu.cursor)[0]
             cursor, cursor_spelling, word_under_cursor = self.__get_impdef_prep(data, offset)
             if len(word_under_cursor) == 0:
                 found_callback(None)
