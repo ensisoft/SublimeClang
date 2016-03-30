@@ -205,7 +205,7 @@ def find_project_file(source_file):
     p = re.compile("\\.sublime-project$")
     dir = os.path.dirname(source_file)
     while len(dir) != 0:
-        print("Trying: " + dir)
+        #print("Trying: " + dir)
         entities = os.listdir(dir)
         for e in entities:
             if e == ".":
@@ -255,6 +255,8 @@ def get_project_settings(cpp_source_file):
             outs.append(setting.replace("${home}", home))
         elif "${project}" in setting:
             pass
+        else:
+            outs.append(setting)
 
     return (project_settings_file, outs)
 
