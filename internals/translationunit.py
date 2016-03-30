@@ -779,7 +779,7 @@ class TranslationUnit(object):
         self.lock.acquire()
         ret = None
         try:
-            ret = self.__clangcomplete(self, filename, row, col, unsaved_files, membercomp)
+            ret = self.__clangcomplete_code(self, filename, row, col, unsaved_files, membercomp)
         finally:
             self.lock.release()
         return ret
