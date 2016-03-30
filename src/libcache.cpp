@@ -20,6 +20,14 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 */
+
+//
+// Copyright (c) 2016 Sami Väisänen, Ensisoft
+// http://www.ensisoft.com
+//
+
+#define LIBRARY_IMPLEMENTATION
+
 #include <clang-c/Index.h>
 #include <stdio.h>
 #include <string>
@@ -29,22 +37,7 @@ freely, subject to the following restrictions:
 #include <algorithm>
 #include <assert.h>
 #include <memory>
-
-
-#if _WIN32
-#pragma comment(lib, "libclang.lib")
-    #if _MSC_VER
-       #define snprintf _snprintf_s
-    #endif
-    #define EXPORT __declspec(dllexport)
-#else
-   #define EXPORT
-#endif
-#if __MINGW32__
-    #define MINGWSUPPORT __attribute__ ((callee_pop_aggregate_return(0)))
-#else
-    #define MINGWSUPPORT
-#endif
+#include "libcache.h"
 
 static const char* getCursorKindName(CXCursorKind c)
 {
@@ -206,10 +199,8 @@ bool operator<(const CXCursor &c1, const CXCursor &c2)
     return ret;
 }
 
-class Entry;
-typedef std::vector<CXCursor>                CursorList;
-typedef std::vector<std::shared_ptr<Entry> > EntryList;
-typedef std::map<CXCursor, CursorList>       CategoryContainer;
+class CacheEntry;
+
 
 
 void dump(CXCursor cursor)
@@ -548,46 +539,6 @@ std::string collapse(std::string before, char startT, char endT, char extraT='\0
     return before;
 }
 
-class Entry
-{
-public:
-    Entry(CXCursor c, std::string &disp, std::string &ins, CX_CXXAccessSpecifier a=CX_CXXPublic, bool base=false)
-    : cursor(c), access(a), isStatic(false), isBaseClass(base)
-    {
-        display = new char[disp.length()+1];
-        memcpy(display, disp.c_str(), disp.length()+1);
-        insert = new char[ins.length()+1];
-        memcpy(insert, ins.c_str(), ins.length()+1);
-
-        if (!clang_Cursor_isNull(c))
-        {
-            CXCursorKind ck = clang_getCursorKind(c);
-            switch (ck)
-            {
-                case CXCursor_CXXMethod:           isStatic = clang_CXXMethod_isStatic(c); break;
-                case CXCursor_VarDecl:             isStatic = true;                        break;
-                case CXCursor_ObjCClassMethodDecl: isStatic = true;                        break;
-                default:                           isStatic = false;                       break;
-            }
-        }
-    }
-    ~Entry()
-    {
-        delete[] display;
-        delete[] insert;
-    }
-    bool operator==(const Entry& other) const
-    {
-        return strcmp(display, other.display) == 0 && strcmp(insert, other.insert) == 0;
-    }
-    CXCursor              cursor;
-    char *                insert;
-    char *                display;
-    CX_CXXAccessSpecifier access;
-    bool                  isStatic;
-    bool                  isBaseClass;
-};
-
 
 void trim(EntryList& mEntries)
 {
@@ -638,7 +589,7 @@ void trim(EntryList& mEntries)
 class EntryCompare
 {
 public:
-    bool operator()(const std::shared_ptr<Entry> a, const std::shared_ptr<Entry> b) const
+    bool operator()(const std::shared_ptr<CacheEntry> a, const std::shared_ptr<CacheEntry> b) const
     {
         if (!b)
             return false;
@@ -654,16 +605,16 @@ public:
 
     }
 
-    bool operator()(const std::shared_ptr<Entry> a, const char *str) const
+    bool operator()(const std::shared_ptr<CacheEntry> a, const char *str) const
     {
         return compare(a, str) < 0;
     }
-    bool operator()(const char *str, const std::shared_ptr<Entry> a) const
+    bool operator()(const char *str, const std::shared_ptr<CacheEntry> a) const
     {
         return compare(a, str) > 0;
     }
 private:
-    int compare(const std::shared_ptr<Entry> a, const char *str) const
+    int compare(const std::shared_ptr<CacheEntry> a, const char *str) const
     {
         size_t length;
 
@@ -685,29 +636,7 @@ private:
     bool mExact;
 };
 
-class CacheCompletionResults
-{
-public:
-    CacheCompletionResults(EntryList::iterator start, EntryList::iterator end)
-    : mEntries(start, end)
-    {
-    }
-    ~CacheCompletionResults()
-    {
-    }
-    unsigned int length() const
-    {
-        return mEntries.size();
-    }
-    const Entry* getEntry(unsigned int index) const
-    {
-        assert(index >= 0 && index < mEntries.size());
-        return mEntries[index].get();
-    }
 
-private:
-    EntryList    mEntries;
-};
 
 CXCursor get_using_cursor(CXCursor cursor, CXCursorKind ck)
 {
@@ -798,7 +727,7 @@ public:
                 parse_res(ins, disp, cursor);
                 if (ins.length() != 0)
                 {
-                    std::shared_ptr<Entry> entry(new Entry(cursor, disp, ins, access, isBaseClass));
+                    std::shared_ptr<CacheEntry> entry(new CacheEntry(cursor, disp, ins, access, isBaseClass));
                     entries.push_back(entry);
                 }
                 else if (ck == CXCursor_StructDecl || ck == CXCursor_UnionDecl)
@@ -854,7 +783,7 @@ public:
                 d.visit_children(cursor);
                 for (EntryList::iterator i = e.begin(); i < e.end(); i++)
                 {
-                    std::shared_ptr<Entry> entry = *i;
+                    std::shared_ptr<CacheEntry> entry = *i;
                     if (clang_getCursorKind(entry->cursor) == CXCursor_Constructor && entry->access == CX_CXXPublic)
                         entries.push_back(entry);
                 }
@@ -1122,7 +1051,7 @@ CXChildVisitResult NamespaceFinder::visitor(CXCursor cursor, CXCursor parent, CX
                         EntryList &entries = d.getEntries();
                         for (EntryList::iterator i = entries.begin(); i < entries.end(); i++)
                         {
-                            std::shared_ptr<Entry> e = (*i);
+                            std::shared_ptr<CacheEntry> e = (*i);
 
                             CXChildVisitResult r = NamespaceFinder::visitor(e->cursor, cursor, nvd);
                             if (r == CXChildVisit_Recurse)
@@ -1265,8 +1194,7 @@ private:
 class Cache
 {
 public:
-    Cache(CXCursor base)
-    : mBaseCursor(base)
+    Cache(CXCursor base) : mBaseCursor(base)
     {
         CompletionVisitorData d(mEntries, CX_CXXPublic);
         d.visit_children(base);
@@ -1274,7 +1202,7 @@ public:
         std::sort(mEntries.begin(), mEntries.end(), EntryCompare());
         for (EntryList::iterator i = mEntries.begin(); i != mEntries.end(); ++i)
         {
-            std::shared_ptr<Entry> e = *i;
+            std::shared_ptr<CacheEntry> e = *i;
             CXCursorKind ck = clang_getCursorKind(e->cursor);
             if (ck == CXCursor_Namespace || ck == CXCursor_NamespaceAlias)
             {
@@ -1284,9 +1212,7 @@ public:
         trim(mEntries);
         clang_visitChildren(base, get_objc_categories_visitor, &mObjCCategories);
     }
-    ~Cache()
-    {
-    }
+
     bool isMemberKind(CXCursorKind ck)
     {
         switch (ck)
@@ -1329,13 +1255,13 @@ public:
             parse_res(insertion, representation, res->Results[start].CursorKind, res->Results[start].CompletionString);
             if (insertion.length() != 0)
             {
-                std::shared_ptr<Entry> entry(new Entry(tmp, representation, insertion));
+                std::shared_ptr<CacheEntry> entry(new CacheEntry(tmp, representation, insertion));
                 entries.push_back(entry);
             }
             start++;
         }
         clang_disposeCodeCompleteResults(res);
-        return new CacheCompletionResults(entries.begin(), entries.end());
+        return new CacheCompletionResults(std::move(entries));
     }
 
     CacheCompletionResults* complete(const char *prefix)
@@ -1449,7 +1375,7 @@ void NamespaceVisitorData::execute()
             EntryList &entries = d.getEntries();
             for (EntryList::iterator i = entries.begin(); i < entries.end(); i++)
             {
-                std::shared_ptr<Entry> e = (*i);
+                std::shared_ptr<CacheEntry> e = (*i);
 
                 CXChildVisitResult r = NamespaceFinder::visitor(e->cursor, cursor, this);
                 if (r == CXChildVisit_Recurse)
@@ -1474,58 +1400,58 @@ void NamespaceVisitorData::execute()
 extern "C"
 {
 
-EXPORT CacheCompletionResults* cache_clangComplete(Cache* cache, const char *filename, unsigned int row, unsigned int col, CXUnsavedFile *unsaved, unsigned int usLength, bool memberCompletion)
+DLLAPI CacheCompletionResults* cache_clangComplete(Cache* cache, const char *filename, unsigned int row, unsigned int col, CXUnsavedFile *unsaved, unsigned int usLength, bool memberCompletion)
 {
     return cache->clangComplete(filename, row, col, unsaved, usLength, memberCompletion);
 }
 
-EXPORT CacheCompletionResults* cache_completeCursor(Cache* cache, CXCursor cur)
+DLLAPI CacheCompletionResults* cache_completeCursor(Cache* cache, CXCursor cur)
 {
     return cache->completeCursor(cur);
 }
 
-EXPORT MINGWSUPPORT CXCursor cache_findType(Cache* cache, const char **namespaces, unsigned int nsLength, const char *type)
+DLLAPI CXCursor cache_findType(Cache* cache, const char **namespaces, unsigned int nsLength, const char *type)
 {
     return cache->findType(namespaces, nsLength, type);
 }
-EXPORT CacheCompletionResults* cache_completeNamespace(Cache* cache, const char **namespaces, unsigned int length)
+DLLAPI CacheCompletionResults* cache_completeNamespace(Cache* cache, const char **namespaces, unsigned int length)
 {
     return cache->getNamespaceMembers(namespaces, length);
 }
 
-EXPORT CacheCompletionResults* cache_complete_startswith(Cache* cache, const char *prefix)
+DLLAPI CacheCompletionResults* cache_complete_startswith(Cache* cache, const char *prefix)
 {
     return cache->complete(prefix);
 }
-EXPORT unsigned int completionResults_length(CacheCompletionResults *comp)
+DLLAPI unsigned int completionResults_length(CacheCompletionResults *comp)
 {
     return comp->length();
 }
-EXPORT const Entry* completionResults_getEntry(CacheCompletionResults *comp, unsigned int index)
+DLLAPI const CacheEntry* completionResults_getEntry(CacheCompletionResults *comp, unsigned int index)
 {
     return comp->getEntry(index);
 }
-EXPORT void completionResults_dispose(CacheCompletionResults *comp)
+DLLAPI void completionResults_dispose(CacheCompletionResults *comp)
 {
     delete comp;
 }
 
-EXPORT Cache* createCache(CXCursor base)
+DLLAPI Cache* createCache(CXCursor base)
 {
     return new Cache(base);
 }
 
-EXPORT void deleteCache(Cache *cache)
+DLLAPI void deleteCache(Cache *cache)
 {
     delete cache;
 }
 
-EXPORT const char* getVersion()
+DLLAPI const char* getVersion()
 {
     return "1.0";
 }
 
-}
+} // extern C
 
 #ifdef _WIN32
 #include <Windows.h>
