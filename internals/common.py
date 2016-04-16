@@ -251,10 +251,13 @@ def get_project_settings(cpp_source_file):
     outs = []
     for setting in project_settings:
         if "${home}" in setting:
+            # expand reference to user home
             home = os.path.expanduser("~")
             outs.append(setting.replace("${home}", home))
         elif "${project}" in setting:
-            pass
+            # expand reference to the folder that contains the project file
+            project_home = os.path.dirname(os.path.abspath(project_settings_file))
+            outs.append(setting.replace("${project}", project_home))
         else:
             outs.append(setting)
 
