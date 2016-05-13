@@ -119,7 +119,7 @@ def collect_all_options(view, filename, language):
         SystemIncludes = info.internal_isystem
         print("Found system includes:")
         print(SystemIncludes)
-    
+
     # this is how we got it from the settings before...
     #sys_includes = common.get_setting("system_include_paths", [])
 
@@ -164,7 +164,7 @@ def get_cache():
 """It looks like '%s' couldn't be loaded. On Linux use your package manager to install clang-3.7.1\n\n \
 or alternatively download a pre-built binary from http://www.llvm.org and put it in your ~/bin/\n\n \
 Visit https://github.com/ensisoft/SublimeClang for more information.""" % (library))
-            else: 
+            else:
                 common.error_message(
 """It looks like '%s' couldn't be loaded.\n\n \
 Download a pre-built binary from http://www.llvm.org and install it in your system.\n\n \
@@ -386,6 +386,15 @@ class ClangClearCache(sublime_plugin.TextCommand):
         sublime.status_message("Cache cleared!")
 
 
+# test for suppressing diagnostics based on suspected clang bugs.
+# todo: are the messages localized??
+def suppress_based_on_clang_bug(source_file, message):
+    if source_file.endswith(".h") or source_file.endswith(".hh") or source_file.endswith(".hpp"):
+       if message in "cannot use 'throw' with exceptions disabled":
+           return True
+    return False
+
+# test for suppressing diagnostics based on source file location.
 def suppress_based_on_location(source_file):
     suppress_dirs = common.get_setting("diagnostic_suppress_dirs", [])
     for d in suppress_dirs:
@@ -393,6 +402,7 @@ def suppress_based_on_location(source_file):
             return True
     return False
 
+# test for suppressing diagnostics based on simple string matching.
 def suppress_based_on_match(message):
     suppress_strings = common.get_setting("diagnostic_suppress_match", [])
     for suppress in suppress_strings:
@@ -438,6 +448,8 @@ def display_compilation_results(view):
         if suppress_based_on_location(source):
             continue
         elif suppress_based_on_match(spelling):
+            continue
+        elif suppress_based_on_clang_bug(source, spelling):
             continue
 
         message = "%s:%d,%d - %s - %s" % (source, line, col, name, spelling)
@@ -726,7 +738,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             return
 
         if cache.tuCache != None:
-            filename = get_filename(view)            
+            filename = get_filename(view)
             cache.tuCache.remove(filename)
 
     def on_query_context(self, view, key, operator, operand, match_all):
