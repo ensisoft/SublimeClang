@@ -39,6 +39,8 @@ freely, subject to the following restrictions:
 #include <memory>
 #include "libcache.h"
 
+#pragma comment(lib, "libclang.lib")
+
 static const char* getCursorKindName(CXCursorKind c)
 {
     switch (c)

@@ -39,7 +39,8 @@ import json
 
 if sys.version[0] == '2':
     def sencode(s):
-        return s.encode("utf-8")
+        #return s.encode("utf-8")
+        return s
 
     def sdecode(s):
         return s

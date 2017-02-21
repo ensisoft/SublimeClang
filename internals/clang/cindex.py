@@ -67,33 +67,6 @@ import collections
 
 import enumerations
 import sys
-
-# todo: what's this can we get rid of this??
-
-if sys.version[0] == '2':
-    def sencode(s):
-        return s.encode("utf-8")
-
-    def sdecode(s):
-        return s
-
-    def bencode(s):
-        return s
-    def bdecode(s):
-        return s
-else:
-    def sencode(s):
-        return s
-
-    def sdecode(s):
-        return s
-
-    def bencode(s):
-        return s.encode("utf-8")
-
-    def bdecode(s):
-        return s.decode("utf-8")
-
 # ctypes doesn't implicitly convert c_void_p to the appropriate wrapper
 # object. This is a problem, because it means that from_parameter will see an
 # integer and pass the wrong value on platforms where int != void*. Work around
@@ -348,7 +321,7 @@ class Diagnostic(object):
 
     @property
     def spelling(self):
-        return bdecode(conf.lib.clang_getDiagnosticSpelling(self))
+        return conf.lib.clang_getDiagnosticSpelling(self)
 
     @property
     def ranges(self):
@@ -385,6 +358,23 @@ class Diagnostic(object):
                 return FixIt(range, value)
 
         return FixItIterator(self)
+
+    @property
+    def children(self):
+        class ChildDiagnosticsIterator:
+            def __init__(self, diag):
+                self.diag_set = conf.lib.clang_getChildDiagnostics(diag)
+
+            def __len__(self):
+                return int(conf.lib.clang_getNumDiagnosticsInSet(self.diag_set))
+
+            def __getitem__(self, key):
+                diag = conf.lib.clang_getDiagnosticInSet(self.diag_set, key)
+                if not diag:
+                    raise IndexError
+                return Diagnostic(diag)
+
+        return ChildDiagnosticsIterator(self)
 
     @property
     def category_number(self):
@@ -539,8 +529,8 @@ class BaseEnumeration(object):
         if value >= len(self.__class__._kinds):
             self.__class__._kinds += [None] * (value - len(self.__class__._kinds) + 1)
         if self.__class__._kinds[value] is not None:
-            raise ValueError('{0} value {1} already loaded'.format(
-                str(self.__class__), value))
+            raise ValueError,'{0} value {1} already loaded'.format(
+                str(self.__class__), value)
         self.value = value
         self.__class__._kinds[value] = self
         self.__class__._name_map = None
@@ -567,7 +557,7 @@ class BaseEnumeration(object):
 
     def __repr__(self):
         return '%s.%s' % (self.__class__, self.name,)
-### Cursor Kinds ###
+
 
 class CursorKind(BaseEnumeration):
     """
@@ -1127,6 +1117,11 @@ CursorKind.CUDAGLOBAL_ATTR = CursorKind(414)
 CursorKind.CUDAHOST_ATTR = CursorKind(415)
 CursorKind.CUDASHARED_ATTR = CursorKind(416)
 
+CursorKind.VISIBILITY_ATTR = CursorKind(417)
+
+CursorKind.DLLEXPORT_ATTR = CursorKind(418)
+CursorKind.DLLIMPORT_ATTR = CursorKind(419)
+
 ###
 # Preprocessing
 CursorKind.PREPROCESSING_DIRECTIVE = CursorKind(500)
@@ -1139,7 +1134,11 @@ CursorKind.INCLUSION_DIRECTIVE = CursorKind(503)
 
 # A module import declaration.
 CursorKind.MODULE_IMPORT_DECL = CursorKind(600)
+# A type alias template declaration
+CursorKind.TYPE_ALIAS_TEMPLATE_DECL = CursorKind(601)
 
+# A code completion overload candidate.
+CursorKind.OVERLOAD_CANDIDATE = CursorKind(700)
 
 ### Template Argument Kinds ###
 class TemplateArgumentKind(BaseEnumeration):
@@ -1157,34 +1156,6 @@ TemplateArgumentKind.TYPE = TemplateArgumentKind(1)
 TemplateArgumentKind.DECLARATION = TemplateArgumentKind(2)
 TemplateArgumentKind.NULLPTR = TemplateArgumentKind(3)
 TemplateArgumentKind.INTEGRAL = TemplateArgumentKind(4)
-
-class CXXAccessSpecifier:
-    def __init__(self, name, kind):
-        self.name = name
-        self.kind = kind
-
-    def __str__(self):
-        return self.name
-
-    def is_public(self):
-        return self.kind == 1
-
-    def is_protected(self):
-        return self.kind == 2
-
-    def is_private(self):
-        return self.kind == 3
-
-_cxx_access_specifiers = {
-       0: CXXAccessSpecifier("CX_CXXInvalidAccessSpecifier", 0),
-       1: CXXAccessSpecifier("CX_CXXPublic", 1),
-       2: CXXAccessSpecifier("CX_CXXProtected", 2),
-       3: CXXAccessSpecifier("CX_CXXPrivate", 3)
-}
-
-CXXAccessSpecifier.PUBLIC = 1
-CXXAccessSpecifier.PROTECTED = 2
-CXXAccessSpecifier.PRIVATE = 3
 
 ### Cursors ###
 
@@ -1233,11 +1204,61 @@ class Cursor(Structure):
         return File.included_file_from_cursor(self)
 
 
+    def is_const_method(self):
+        """Returns True if the cursor refers to a C++ member function or member
+        function template that is declared 'const'.
+        """
+        return conf.lib.clang_CXXMethod_isConst(self)
+
+    def is_converting_constructor(self):
+        """Returns True if the cursor refers to a C++ converting constructor.
+        """
+        return conf.lib.clang_CXXConstructor_isConvertingConstructor(self)
+
+    def is_copy_constructor(self):
+        """Returns True if the cursor refers to a C++ copy constructor.
+        """
+        return conf.lib.clang_CXXConstructor_isCopyConstructor(self)
+
+    def is_default_constructor(self):
+        """Returns True if the cursor refers to a C++ default constructor.
+        """
+        return conf.lib.clang_CXXConstructor_isDefaultConstructor(self)
+
+    def is_move_constructor(self):
+        """Returns True if the cursor refers to a C++ move constructor.
+        """
+        return conf.lib.clang_CXXConstructor_isMoveConstructor(self)
+
+    def is_default_method(self):
+        """Returns True if the cursor refers to a C++ member function or member
+        function template that is declared '= default'.
+        """
+        return conf.lib.clang_CXXMethod_isDefaulted(self)
+
+    def is_mutable_field(self):
+        """Returns True if the cursor refers to a C++ field that is declared
+        'mutable'.
+        """
+        return conf.lib.clang_CXXField_isMutable(self)
+
+    def is_pure_virtual_method(self):
+        """Returns True if the cursor refers to a C++ member function or member
+        function template that is declared pure virtual.
+        """
+        return conf.lib.clang_CXXMethod_isPureVirtual(self)
+
     def is_static_method(self):
         """Returns True if the cursor refers to a C++ member function or member
         function template that is declared 'static'.
         """
         return conf.lib.clang_CXXMethod_isStatic(self)
+
+    def is_virtual_method(self):
+        """Returns True if the cursor refers to a C++ member function or member
+        function template that is declared 'virtual'.
+        """
+        return conf.lib.clang_CXXMethod_isVirtual(self)
 
     # Quarnster
     def get_cxx_access_specifier(self):
@@ -1521,28 +1542,24 @@ class Cursor(Structure):
     def get_children(self):
         """Return an iterator for accessing the children of this cursor."""
 
-        assert self._tu is not None
-
         # FIXME: Expose iteration from CIndex, PR6125.
         def visitor(child, parent, children):
             # FIXME: Document this assertion in API.
             # FIXME: There should just be an isNull method.
             assert child != conf.lib.clang_getNullCursor()
 
-            # todo: this assert is hit... wut
-            assert self._tu is not None
             # Create reference to TU so it isn't GC'd before Cursor.
             child._tu = self._tu
             children.append(child)
             return 1 # continue
-
         children = []
         conf.lib.clang_visitChildren(self, callbacks['cursor_visit'](visitor),
             children)
+        return iter(children)
+        #return list(iter(children))
 
-        #return iter(children)
-        return list(iter(children))
-
+    def get_children_list(self): 
+        return list(self.get_children())
 
     def walk_preorder(self):
         """Depth-first preorder walk over the cursor and its descendants.
@@ -1601,7 +1618,7 @@ class Cursor(Structure):
             elif type.kind == TypeKind.CONSTANTARRAY:
                 type = type.get_array_element_type()
             elif type.kind == TypeKind.TYPEDEF:
-                children = self.get_children()
+                children = self.get_children_list()
                 if len(children) == 1 and children[0].kind == CursorKind.TYPE_REF:
                     ref = children[0].referenced
                     if ref != self:
@@ -1632,7 +1649,7 @@ class Cursor(Structure):
                 ret = self
             return ret
         if self.kind == CursorKind.TYPEDEF_DECL:
-            children = self.get_children()
+            children = self.get_children_list()
             simple = True
             first = 0
             for child in children:
@@ -1648,7 +1665,7 @@ class Cursor(Structure):
                 return children[first].get_resolved_cursor(self)
             return self
         elif self.result_type.kind == TypeKind.RECORD:
-            return self.get_children()[0].get_resolved_cursor()
+            return self.get_children_list()[0].get_resolved_cursor()
         elif self.kind == CursorKind.CLASS_DECL or self.kind == CursorKind.ENUM_DECL or self.kind == CursorKind.CLASS_TEMPLATE:
             return self
         elif self.kind == CursorKind.TEMPLATE_TYPE_PARAMETER:
@@ -1663,7 +1680,7 @@ class Cursor(Structure):
             return ref.get_resolved_cursor(self)
         elif self.kind.is_declaration():
             #print("decl: %s, %s" % (self.spelling, self.kind))
-            for child in self.get_children():
+            for child in self.get_children_list():
                 #print("%s, %s, %s, %s" % (child.kind, child.spelling, child.type.kind, child.result_type.kind))
                 if child.kind == CursorKind.TYPE_REF:
                     c = child.referenced
@@ -1709,7 +1726,7 @@ class Cursor(Structure):
     def dump(self, once=True):
         indent = "" if once else "    "
         print("%s this: %s, %s, %s, %s, %s, %s, %s" % (indent, self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind, self.get_usr(), self.location))
-        children = self.get_children()
+        children = self.get_children_list()
         for i in range(len(children)):
             child = children[i]
             print("%s    %d: %s, %s, %s, %s, %s, %s" % (indent, i, child.kind, child.spelling, child.displayname, child.type.kind, child.result_type.kind, child.get_usr()))
@@ -1740,7 +1757,7 @@ class Cursor(Structure):
                     self.kind == CursorKind.OBJC_IVAR_DECL or \
                     self.kind == CursorKind.VAR_DECL or \
                     self.kind == CursorKind.PARM_DECL:
-            children = self.get_children()
+            children = self.get_children_list()
             if len(children) > 0:
                 c = children.pop(0)
                 while len(children):
@@ -1775,7 +1792,7 @@ class Cursor(Structure):
         if self.kind.is_declaration():
             ret = self #.get_resolved_cursor()
         if self.result_type.kind == TypeKind.RECORD:
-            ret = self.get_children()[0]
+            ret = self.get_children_list()[0]
         if self.result_type.kind == TypeKind.POINTER or \
                     self.result_type.kind == TypeKind.LVALUEREFERENCE or \
                     self.result_type.kind == TypeKind.RVALUEREFERENCE:
@@ -1796,7 +1813,7 @@ class Cursor(Structure):
 
     def get_member(self, membername, function):
         #print("want to get the cursor for: %s->%s%s" % (self.spelling, membername, "()" if function else ""))
-        for child in self.get_children():
+        for child in self.get_children_list():
             if function and (child.kind == CursorKind.CXX_METHOD or child.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL) and child.spelling == membername:
                 return child
             elif not function and (child.kind == CursorKind.FIELD_DECL or child.kind == CursorKind.VAR_DECL or child.kind == CursorKind.OBJC_IVAR_DECL) and child.spelling == membername:
@@ -1808,7 +1825,7 @@ class Cursor(Structure):
             # elif child.spelling == membername:
             #     print("unhandled kind: %s" % child.kind)
         if self.kind == CursorKind.OBJC_INTERFACE_DECL:
-            for child in self.get_children():
+            for child in self.get_children_list():
                 if child.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL and child.spelling == membername:
                     ret = True
                     for c2 in child.get_children():
@@ -1819,7 +1836,7 @@ class Cursor(Structure):
                         return child
 
         # Not found in this class, try base class
-        for child in self.get_children():
+        for child in self.get_children_list():
             if child.kind == CursorKind.CXX_BASE_SPECIFIER:
                 ret = child.referenced.get_member(membername, function)
                 if ret:
@@ -1860,10 +1877,6 @@ class Cursor(Structure):
 
         res._tu = args[0]._tu
         return res
-
-
-
-
 
 class StorageClass(object):
     """
@@ -1957,9 +1970,6 @@ class TypeKind(BaseEnumeration):
     def __repr__(self):
         return 'TypeKind.%s' % (self.name,)
 
-    def is_invalid(self):
-        return self.value == 0
-
 TypeKind.INVALID = TypeKind(0)
 TypeKind.UNEXPOSED = TypeKind(1)
 TypeKind.VOID = TypeKind(2)
@@ -1990,6 +2000,7 @@ TypeKind.DEPENDENT = TypeKind(26)
 TypeKind.OBJCID = TypeKind(27)
 TypeKind.OBJCCLASS = TypeKind(28)
 TypeKind.OBJCSEL = TypeKind(29)
+TypeKind.FLOAT128 = TypeKind(30)
 TypeKind.COMPLEX = TypeKind(100)
 TypeKind.POINTER = TypeKind(101)
 TypeKind.BLOCKPOINTER = TypeKind(102)
@@ -2008,6 +2019,8 @@ TypeKind.INCOMPLETEARRAY = TypeKind(114)
 TypeKind.VARIABLEARRAY = TypeKind(115)
 TypeKind.DEPENDENTSIZEDARRAY = TypeKind(116)
 TypeKind.MEMBERPOINTER = TypeKind(117)
+TypeKind.AUTO = TypeKind(118)
+TypeKind.ELABORATED = TypeKind(119)
 
 class RefQualifierKind(BaseEnumeration):
     """Describes a specific ref-qualifier of a type."""
@@ -2205,6 +2218,12 @@ class Type(Structure):
         Retrieve the class type of the member pointer type.
         """
         return conf.lib.clang_Type_getClassType(self)
+
+    def get_named_type(self):
+        """
+        Retrieve the type named by the qualified-id.
+        """
+        return conf.lib.clang_Type_getNamedType(self)
 
     def get_align(self):
         """
@@ -2643,21 +2662,18 @@ class TranslationUnit(ClangObject):
 
         args_array = None
         if len(args) > 0:
-            args = [bencode(a) for a in args] # Quarnster
             args_array = (c_char_p * len(args))(* args)
 
         unsaved_array = None
         if len(unsaved_files) > 0:
             unsaved_array = (_CXUnsavedFile * len(unsaved_files))()
             for i, (name, contents) in enumerate(unsaved_files):
-                # quarnster
-                #if hasattr(contents, "read"):
-                #    contents = contents.read()
-                value = bencode(makeString(value))
+                if hasattr(contents, "read"):
+                    contents = contents.read()
 
-                unsaved_array[i].name = bencode(name) # quarnster
-                unsaved_array[i].contents = value #contents
-                unsaved_array[i].length = len(value) #len(contents)
+                unsaved_array[i].name = name
+                unsaved_array[i].contents = contents
+                unsaved_array[i].length = len(contents)
 
         ptr = conf.lib.clang_parseTranslationUnit(index, filename, args_array,
                                     len(args), unsaved_array,
@@ -2697,7 +2713,7 @@ class TranslationUnit(ClangObject):
         functions above. __init__ is only called internally.
         """
         assert isinstance(index, Index)
-
+        self.index = index
         ClangObject.__init__(self, ptr)
 
     def __del__(self):
@@ -2830,15 +2846,14 @@ class TranslationUnit(ClangObject):
         if len(unsaved_files):
             unsaved_files_array = (_CXUnsavedFile * len(unsaved_files))()
             for i,(name,value) in enumerate(unsaved_files):
-                #if not isinstance(value, str):
+                if not isinstance(value, str):
                     # FIXME: It would be great to support an efficient version
                     # of this, one day.
-                #    value = value.read()
-                #    print(value)
-                #if not isinstance(value, str):
-                #    raise TypeError('Unexpected unsaved file contents.')
-                value = bencode(makeString(value))
-                unsaved_files_array[i].name = bencode(name)
+                    value = value.read()
+                    print value
+                if not isinstance(value, str):
+                    raise TypeError,'Unexpected unsaved file contents.'
+                unsaved_files_array[i].name = name
                 unsaved_files_array[i].contents = value
                 unsaved_files_array[i].length = len(value)
         ptr = conf.lib.clang_reparseTranslationUnit(self, len(unsaved_files),
@@ -2895,14 +2910,13 @@ class TranslationUnit(ClangObject):
         if len(unsaved_files):
             unsaved_files_array = (_CXUnsavedFile * len(unsaved_files))()
             for i,(name,value) in enumerate(unsaved_files):
-                #if not isinstance(value, str):
+                if not isinstance(value, str):
                     # FIXME: It would be great to support an efficient version
                     # of this, one day.
-                #    value = value.read()
-                #    print(value)
-                #if not isinstance(value, str):
-                #    raise TypeError('Unexpected unsaved file contents.')
-                value = makeString(value)
+                    value = value.read()
+                    print value
+                if not isinstance(value, str):
+                    raise TypeError,'Unexpected unsaved file contents.'
                 unsaved_files_array[i].name = name
                 unsaved_files_array[i].contents = value
                 unsaved_files_array[i].length = len(value)
@@ -2944,7 +2958,7 @@ class File(ClangObject):
     @property
     def name(self):
         """Return the complete file and path name of the file."""
-        return bdecode(conf.lib.clang_getCString(conf.lib.clang_getFileName(self)))
+        return conf.lib.clang_getCString(conf.lib.clang_getFileName(self))
 
     @property
     def time(self):
@@ -3022,6 +3036,11 @@ class CompileCommand(object):
     def directory(self):
         """Get the working directory for this CompileCommand"""
         return conf.lib.clang_CompileCommand_getDirectory(self.cmd)
+
+    @property
+    def filename(self):
+        """Get the working filename for this CompileCommand"""
+        return conf.lib.clang_CompileCommand_getFilename(self.cmd)
 
     @property
     def arguments(self):
@@ -3205,6 +3224,11 @@ functionList = [
    _CXString,
    _CXString.from_result),
 
+  ("clang_CompileCommand_getFilename",
+   [c_object_p],
+   _CXString,
+   _CXString.from_result),
+
   ("clang_CompileCommand_getNumArgs",
    [c_object_p],
    c_uint),
@@ -3228,6 +3252,34 @@ functionList = [
   ("clang_createTranslationUnit",
    [Index, c_char_p],
    c_object_p),
+
+  ("clang_CXXConstructor_isConvertingConstructor",
+   [Cursor],
+   bool),
+
+  ("clang_CXXConstructor_isCopyConstructor",
+   [Cursor],
+   bool),
+
+  ("clang_CXXConstructor_isDefaultConstructor",
+   [Cursor],
+   bool),
+
+  ("clang_CXXConstructor_isMoveConstructor",
+   [Cursor],
+   bool),
+
+  ("clang_CXXField_isMutable",
+   [Cursor],
+   bool),
+
+  ("clang_CXXMethod_isConst",
+   [Cursor],
+   bool),
+
+  ("clang_CXXMethod_isDefaulted",
+   [Cursor],
+   bool),
 
   ("clang_CXXMethod_isPureVirtual",
    [Cursor],
@@ -3309,6 +3361,10 @@ functionList = [
    [Type],
    Type,
    Type.from_result),
+
+  ("clang_getChildDiagnostics",
+   [Diagnostic],
+   c_object_p),
 
   ("clang_getCompletionAvailability",
    [c_void_p],
@@ -3430,6 +3486,10 @@ functionList = [
    _CXString,
    _CXString.from_result),
 
+  ("clang_getDiagnosticInSet",
+   [c_object_p, c_uint],
+   c_object_p),
+
   ("clang_getDiagnosticLocation",
    [Diagnostic],
    SourceLocation),
@@ -3495,14 +3555,10 @@ functionList = [
    Type,
    Type.from_result),
 
-  # ("clang_getIncludedFile",
-  #  [Cursor],
-  #  File,
-  #  File.from_cursor_result),
-
   ("clang_getIncludedFile",
-    [Cursor],
-    c_object_p),
+   [Cursor],
+   File,
+   File.from_cursor_result),
 
   ("clang_getInclusions",
    [TranslationUnit, callbacks['translation_unit_includes'], py_object]),
@@ -3532,6 +3588,10 @@ functionList = [
    c_int),
 
   ("clang_getNumDiagnostics",
+   [c_object_p],
+   c_uint),
+
+  ("clang_getNumDiagnosticsInSet",
    [c_object_p],
    c_uint),
 
@@ -3793,6 +3853,11 @@ functionList = [
   ("clang_Type_getCXXRefQualifier",
    [Type],
    c_uint),
+
+  ("clang_Type_getNamedType",
+   [Type],
+   Type,
+   Type.from_result),
 
   ("clang_Type_visitFields",
    [Type, callbacks['fields_visit'], py_object],
